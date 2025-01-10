@@ -1,0 +1,21 @@
+doctype html
+html
+    head
+        meta(charset='UTF-8')
+        meta(name='viewport' content='width=device-width, initial-scale=1')
+        style
+            include ../css/index.css
+    body
+        header
+            img(src='https://space2studyb582.blob.core.windows.net/space-2-study/logo.png', alt="Space2Study Logo")
+            block title
+            block description
+        main
+            .info 
+                div
+                p Це автоматизований електронний лист. Не відповідайте на нього. Ви отримали цей електронний лист, оскільки ви зареєстровані як
+                    a #{email}
+                    |  на <br/> SpaceToStudy
+        footer
+            h3 SpaceToStudy
+            p &copy; 2022 SpaceToStudy. Всі права захищені.

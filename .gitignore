@@ -1,0 +1,23 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/src/test/coverage
+test-report.xml
+/build
+
+# sonar scanner work
+.scannerwork
+
+# misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.idea
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
