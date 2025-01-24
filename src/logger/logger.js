@@ -1,6 +1,7 @@
 const { createLogger, transports, format } = require('winston')
 const { combine, timestamp, json, metadata, errors, prettyPrint } = format
 require('winston-mongodb')
+require('dotenv').config()
 
 const {
   config: { MONGODB_URL }
