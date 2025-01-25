@@ -1,11 +1,9 @@
 const crypto = require('crypto')
 
-// Функція для створення безпечного випадкового секрету
 const generateSecret = () => {
-  return crypto.randomBytes(64).toString('hex') // генерує рядок завдовжки 64 байти (128 символів)
+  return crypto.randomBytes(64).toString('hex')
 }
 
-//Генеруємо секрети для різних токенів
 const accessSecret = generateSecret()
 const refreshSecret = generateSecret()
 const resetSecret = generateSecret()
