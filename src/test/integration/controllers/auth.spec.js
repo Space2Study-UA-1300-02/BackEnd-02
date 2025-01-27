@@ -7,6 +7,12 @@ const errors = require('~/consts/errors')
 const tokenService = require('~/services/token')
 const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
+const { OAuth2Client } = require('google-auth-library')
+jest.mock('google-auth-library') // Мокаем Google OAuth2Client
+
+
+
+
 
 describe('Auth controller', () => {
   let app, server, signupResponse
@@ -114,4 +120,105 @@ describe('Auth controller', () => {
       expectError(400, errors.BAD_RESET_TOKEN, response)
     })
   })
+
+  const authService = require('~/services/auth'); // Импортируем authService, если это функция
+  jest.mock('~/services/auth', () => jest.fn()); // Мокаем authService как функцию
+  describe('Google Login endpoint', () => {
+    let mockVerifyIdToken;
+
+    beforeAll(() => {
+      mockVerifyIdToken = jest.fn();
+      OAuth2Client.prototype.verifyIdToken = mockVerifyIdToken;
+    });
+
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should successfully login a user with valid Google ID token', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'user@example.com',
+          given_name: 'John',
+          family_name: 'Doe',
+        }),
+      });
+
+      // Замокируем поведение функции authService
+      authService.mockResolvedValue({
+        accessToken: 'valid-access-token',
+        refreshToken: 'valid-refresh-token',
+      });
+
+      const validIdToken = 'valid-google-id-token';
+      const response = await app.post('/auth/google-login').send({ idToken: validIdToken });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('refreshToken');
+    });
+
+    it('should create a new user if one does not exist', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'newuser@example.com',
+          given_name: 'Jane',
+          family_name: 'Doe',
+        }),
+      });
+
+      const newUserId = 'new-user-id';
+      const validIdToken = 'valid-google-id-token';
+
+      const createUserMock = jest.fn().mockResolvedValue({ _id: newUserId });
+      const loginMock = jest.fn().mockResolvedValue({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      });
+
+      // Замокируем поведение authService для создания пользователя и логина
+      authService.mockImplementationOnce(createUserMock).mockImplementationOnce(loginMock);
+
+      const response = await app.post('/auth/google-login').send({ idToken: validIdToken });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('refreshToken');
+      expect(createUserMock).toHaveBeenCalledWith(
+        'Jane', // first name
+        'Doe',  // last name
+        'newuser@example.com', // email
+        null,   // password (не используется)
+        true    // email confirmed
+      );
+      expect(loginMock).toHaveBeenCalledWith('newuser@example.com', null, true);
+    });
+
+    it('should throw an error for invalid Google ID token', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('Invalid ID token'));
+
+      const invalidIdToken = 'invalid-google-id-token';
+      const response = await app.post('/auth/google-login').send({ idToken: invalidIdToken });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe('Invalid ID token');
+    });
+
+    it('should throw an error if user does not exist in the database', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'nonexistentuser@example.com',
+          given_name: 'Nonexistent',
+          family_name: 'User',
+        }),
+      });
+
+      const nonExistentIdToken = 'nonexistent-google-id-token';
+      const response = await app.post('/auth/google-login').send({ idToken: nonExistentIdToken });
+
+      expect(response.status).toBe(200); // Ответ будет успешным, так как пользователь создается
+      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('refreshToken');
+    });
+  });
 })

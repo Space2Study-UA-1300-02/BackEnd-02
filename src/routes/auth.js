@@ -17,6 +17,7 @@ router.post(
   asyncWrapper(authController.signup)
 )
 router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(authController.login))
+router.post('/google-login', langMiddleware, asyncWrapper(authController.googleAuth))
 router.post('/logout', asyncWrapper(authController.logout))
 router.get('/refresh', asyncWrapper(authController.refreshAccessToken))
 router.post(
@@ -31,5 +32,6 @@ router.patch(
   langMiddleware,
   asyncWrapper(authController.updatePassword)
 )
+
 
 module.exports = router

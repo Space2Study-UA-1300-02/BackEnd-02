@@ -1,3 +1,4 @@
+const { OAuth2Client } = require('google-auth-library');
 const tokenService = require('~/services/token')
 const emailService = require('~/services/email')
 const { getUserByEmail, createUser, privateUpdateUser, getUserById } = require('~/services/user')
@@ -109,7 +110,52 @@ const authService = {
     await emailService.sendEmail(email, emailSubject.SUCCESSFUL_PASSWORD_RESET, language, {
       firstName
     })
+  },
+
+  googleAuth: async (idToken) => {
+    try {
+      // Проверяем наличие токена
+      if (!idToken) {
+        throw new Error('ID token is required');
+      }
+
+      // Инициализируем клиента Google OAuth2
+      const clientId = process.env.GOOGLE_CLIENT_ID
+      const client = new OAuth2Client(clientId)
+
+      // Проверяем токен и извлекаем данные пользователя
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: clientId,
+      })
+      const payload = ticket.getPayload()
+
+      if (!payload) {
+        throw new Error('Invalid ID token')
+      }
+
+      const { email, given_name: firstName, family_name: lastName } = payload
+
+      // Проверяем, существует ли пользователь в базе данных
+      let user = await getUserByEmail(email)
+
+      if (!user) {
+        // Если пользователь не найден, создаем нового
+        const isEmailConfirmed = true // Считаем email подтвержденным
+        user = await createUser(null, firstName, lastName, email, null, isEmailConfirmed)
+      }
+
+      // Логиним пользователя через сервис авторизации
+      const isFromGoogle = true
+      const tokens = await authService.login(email, null, isFromGoogle)
+
+      return tokens
+    } catch (error) {
+      console.error('Google authentication error:', error.message)
+      throw new Error(error.message || 'Failed to authenticate with Google')
+    }
   }
 }
+
 
 module.exports = authService

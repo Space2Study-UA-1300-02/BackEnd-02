@@ -86,11 +86,50 @@ const updatePassword = async (req, res) => {
   res.status(204).end()
 }
 
+const authGoogle = async (req, res) => {
+  try {
+    const { token, role } = req.body // Получаем токен и роль
+    const lang = req.lang // Язык из запроса
+
+    // Проверка на наличие необходимых данных в теле запроса
+    if (!token || !token.credential) {
+      return res.status(400).json({ message: 'Google token is required' })
+    }
+
+    // Вызов сервиса для аутентификации через Google
+    const tokens = await authService.googleAuth(token.credential, role, lang)
+
+    // Сохраняем токены в cookies
+    res.cookie(ACCESS_TOKEN, tokens.accessToken, COOKIE_OPTIONS)
+    res.cookie(REFRESH_TOKEN, tokens.refreshToken, COOKIE_OPTIONS)
+
+    // Удаляем refreshToken из объекта, чтобы не отправить его в ответ
+    delete tokens.refreshToken
+
+    // Отправляем только accessToken в ответе
+    return res.status(200).json(tokens)
+  } catch (error) {
+    console.error('Google authentication error:', error.message)
+
+    // Обрабатываем ошибки и отправляем соответствующий ответ
+    if (error.response) {
+      // Ошибка от сервиса Google
+      return res.status(500).json({ message: 'Google authentication service error', error: error.message })
+    }
+
+    // Общая ошибка
+    return res.status(500).json({ message: 'An unexpected error occurred during Google authentication', error: error.message })
+  }
+}
+
+
 module.exports = {
   signup,
   login,
   logout,
   refreshAccessToken,
   sendResetPasswordEmail,
-  updatePassword
+  updatePassword,
+  authGoogle // Добавили новый метод для Google логина
+
 }
