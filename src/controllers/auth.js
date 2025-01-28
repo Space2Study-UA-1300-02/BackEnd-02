@@ -88,40 +88,44 @@ const updatePassword = async (req, res) => {
 
 const authGoogle = async (req, res) => {
   try {
-    const { token, role } = req.body // Получаем токен и роль
-    const lang = req.lang // Язык из запроса
+    const { token, role } = req.body
+    const lang = req.lang
 
-    // Проверка на наличие необходимых данных в теле запроса
-    if (!token || !token.credential) {
-      return res.status(400).json({ message: 'Google token is required' })
+    // Проверяем, что токен Google передан в запросе
+    if (!token?.credential) {
+      return res.status(400).json({
+        message: 'Google token is required',
+        error: 'INVALID_GOOGLE_TOKEN'
+      })
     }
+
+    console.log('Google token:', token) // Логируем токен для отладки
 
     // Вызов сервиса для аутентификации через Google
     const tokens = await authService.googleAuth(token.credential, role, lang)
 
-    // Сохраняем токены в cookies
+    console.log('Setting cookies:', {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
+    }) // Логируем токены перед их установкой в cookies
+
+    // Устанавливаем cookies с accessToken и refreshToken
     res.cookie(ACCESS_TOKEN, tokens.accessToken, COOKIE_OPTIONS)
     res.cookie(REFRESH_TOKEN, tokens.refreshToken, COOKIE_OPTIONS)
 
-    // Удаляем refreshToken из объекта, чтобы не отправить его в ответ
+    // Удаляем refreshToken из ответа, так как его не нужно возвращать клиенту
     delete tokens.refreshToken
 
-    // Отправляем только accessToken в ответе
+    // Возвращаем успешный ответ с токенами
     return res.status(200).json(tokens)
   } catch (error) {
-    console.error('Google authentication error:', error.message)
+    // Логируем ошибку, если она произошла на каком-либо этапе
+    console.error('Google authentication error:', error)
 
-    // Обрабатываем ошибки и отправляем соответствующий ответ
-    if (error.response) {
-      // Ошибка от сервиса Google
-      return res.status(500).json({ message: 'Google authentication service error', error: error.message })
-    }
-
-    // Общая ошибка
-    return res.status(500).json({ message: 'An unexpected error occurred during Google authentication', error: error.message })
+    // Возвращаем ошибку с кодом, который был передан в исключении (или 500 по умолчанию)
+    return res.status(error.status || 500).json({ message: error.message, error: error.code })
   }
 }
-
 
 module.exports = {
   signup,

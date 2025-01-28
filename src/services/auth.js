@@ -1,4 +1,4 @@
-const { OAuth2Client } = require('google-auth-library');
+const { OAuth2Client } = require('google-auth-library')
 const tokenService = require('~/services/token')
 const emailService = require('~/services/email')
 const { getUserByEmail, createUser, privateUpdateUser, getUserById } = require('~/services/user')
@@ -6,6 +6,7 @@ const { createError } = require('~/utils/errorsHelper')
 const {
   EMAIL_NOT_CONFIRMED,
   INCORRECT_CREDENTIALS,
+  INVALID_GOOGLE_TOKEN,
   BAD_RESET_TOKEN,
   BAD_REFRESH_TOKEN,
   USER_NOT_FOUND
@@ -112,47 +113,88 @@ const authService = {
     })
   },
 
-  googleAuth: async (idToken) => {
+  googleAuth: async (idToken, role = 'student', language) => {
+    if (!idToken) {
+      throw createError(400, INVALID_GOOGLE_TOKEN)
+    }
+
     try {
-      // Проверяем наличие токена
-      if (!idToken) {
-        throw new Error('ID token is required');
+      const clientId = process.env.GMAIL_CLIENT_ID
+      if (!clientId) {
+        throw new Error('Google Client ID is not configured')
       }
 
-      // Инициализируем клиента Google OAuth2
-      const clientId = process.env.GOOGLE_CLIENT_ID
       const client = new OAuth2Client(clientId)
 
-      // Проверяем токен и извлекаем данные пользователя
       const ticket = await client.verifyIdToken({
         idToken,
         audience: clientId,
       })
-      const payload = ticket.getPayload()
 
+      const payload = ticket.getPayload()
       if (!payload) {
-        throw new Error('Invalid ID token')
+        throw createError(400, INVALID_GOOGLE_TOKEN)
       }
 
-      const { email, given_name: firstName, family_name: lastName } = payload
+      const { email, email_verified, given_name: firstName, family_name: lastName } = payload
 
-      // Проверяем, существует ли пользователь в базе данных
+      if (!email_verified) {
+        throw createError(401, EMAIL_NOT_CONFIRMED)
+      }
+
       let user = await getUserByEmail(email)
 
-      if (!user) {
-        // Если пользователь не найден, создаем нового
-        const isEmailConfirmed = true // Считаем email подтвержденным
-        user = await createUser(null, firstName, lastName, email, null, isEmailConfirmed)
+      console.log('Google Auth: Checking if user exists:', { email, userExists: !!user })
+
+      if (user) {
+        console.log('Google Auth: Updating existing user:', { userId: user._id, firstName, lastName })
+        await privateUpdateUser(user._id, {
+          firstName: firstName || user.firstName,
+          lastName: lastName || user.lastName,
+          lastLogin: new Date()
+        })
+      } else {
+        // Создаем нового пользователя
+        const userData = {
+          role: [role], // роль передается как массив согласно схеме
+          firstName: firstName || 'GoogleUser',
+          lastName: lastName || 'NoLastName',
+          email,
+          password: null, // для Google Auth не используем пароль
+          isEmailConfirmed: true,
+          appLanguage: language || 'en',
+          status: {
+            [role]: 'active'
+          },
+          lastLoginAs: role
+        }
+
+        console.log('Google Auth: Creating new user with data:', userData)
+
+        user = await createUser(userData)
       }
 
-      // Логиним пользователя через сервис авторизации
-      const isFromGoogle = true
-      const tokens = await authService.login(email, null, isFromGoogle)
+      // Генерируем токены
+      const tokens = tokenService.generateTokens({
+        id: user._id,
+        role: user.lastLoginAs || role,
+        isFirstLogin: user.isFirstLogin
+      })
+
+      await tokenService.saveToken(user._id, tokens.refreshToken, REFRESH_TOKEN)
+
+      if (user.isFirstLogin) {
+        await privateUpdateUser(user._id, { isFirstLogin: false })
+      }
 
       return tokens
+
     } catch (error) {
-      console.error('Google authentication error:', error.message)
-      throw new Error(error.message || 'Failed to authenticate with Google')
+      if (error.statusCode) {
+        throw error
+      }
+      console.error('Google authentication error:', error)
+      throw createError(500, error.message)
     }
   }
 }

@@ -8,17 +8,35 @@ const tokenService = require('~/services/token')
 const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
-jest.mock('google-auth-library') // Мокаем Google OAuth2Client
+const { getUserByEmail, privateUpdateUser } = require('~/services/user')
 
-
-
-
+// Мокаем google-auth-library
+jest.mock('google-auth-library')
 
 describe('Auth controller', () => {
   let app, server, signupResponse
 
+  // Моки для Google Auth
+  const mockGooglePayload = {
+    email: 'test@gmail.com',
+    email_verified: true,
+    given_name: 'John',
+    family_name: 'Doe'
+  }
+
+  const mockValidGoogleToken = {
+    credential: 'valid.google.token'
+  }
+
   beforeAll(async () => {
     ; ({ app, server } = await serverInit())
+
+    // Настраиваем моки для Google OAuth2Client
+    OAuth2Client.mockImplementation(() => ({
+      verifyIdToken: jest.fn().mockResolvedValue({
+        getPayload: () => mockGooglePayload
+      })
+    }))
   })
 
   beforeEach(async () => {
@@ -27,10 +45,12 @@ describe('Auth controller', () => {
 
   afterEach(async () => {
     await serverCleanup()
+    jest.clearAllMocks()
   })
 
   afterAll(async () => {
     await stopServer(server)
+    jest.resetAllMocks()
   })
 
   const user = {
@@ -121,104 +141,143 @@ describe('Auth controller', () => {
     })
   })
 
-  const authService = require('~/services/auth'); // Импортируем authService, если это функция
-  jest.mock('~/services/auth', () => jest.fn()); // Мокаем authService как функцию
-  describe('Google Login endpoint', () => {
-    let mockVerifyIdToken;
 
-    beforeAll(() => {
-      mockVerifyIdToken = jest.fn();
-      OAuth2Client.prototype.verifyIdToken = mockVerifyIdToken;
-    });
+  describe('Google Auth endpoint', () => {
+    it('should successfully authenticate with Google credentials', async () => {
+      const response = await app
+        .post('/auth/google-login')
+        .send({ token: mockValidGoogleToken,
+          role: 'student'})
 
-    afterEach(() => {
-      jest.clearAllMocks();
-    });
+      expect(response.status).toBe(200)
+      expect(response.body).toHaveProperty('accessToken')
+      expect(response.headers['set-cookie'].some(cookie => cookie.includes('refreshToken'))).toBe(true)
+    })
 
-    it('should successfully login a user with valid Google ID token', async () => {
-      mockVerifyIdToken.mockResolvedValue({
-        getPayload: () => ({
-          email: 'user@example.com',
-          given_name: 'John',
-          family_name: 'Doe',
-        }),
-      });
+    it('should create new user on first Google login', async () => {
+      const response = await app
+        .post('/auth/google-login')
+        .send({
+          token: mockValidGoogleToken,
+          role: 'student'
+        })
 
-      // Замокируем поведение функции authService
-      authService.mockResolvedValue({
-        accessToken: 'valid-access-token',
-        refreshToken: 'valid-refresh-token',
-      });
+      expect(response.status).toBe(200)
 
-      const validIdToken = 'valid-google-id-token';
-      const response = await app.post('/auth/google-login').send({ idToken: validIdToken });
+      // Проверяем, что пользователь создан с правильными данными
+      const user = await getUserByEmail(mockGooglePayload.email)
+      expect(user).toBeTruthy()
+      expect(user.firstName).toBe(mockGooglePayload.given_name)
+      expect(user.lastName).toBe(mockGooglePayload.family_name)
+      expect(user.isEmailConfirmed).toBe(true)
+      expect(user.role).toContain('student')
+    })
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-    });
+    it('should update existing user on subsequent Google login', async () => {
+      // Сначала создаем пользователя через Google Auth
+      await app
+        .post('/auth/google-login')
+        .send({ token: mockValidGoogleToken })
 
-    it('should create a new user if one does not exist', async () => {
-      mockVerifyIdToken.mockResolvedValue({
-        getPayload: () => ({
-          email: 'newuser@example.com',
-          given_name: 'Jane',
-          family_name: 'Doe',
-        }),
-      });
+      // Меняем имя в моке Google payload
+      const updatedPayload = {
+        ...mockGooglePayload,
+        given_name: 'Jane'
+      }
 
-      const newUserId = 'new-user-id';
-      const validIdToken = 'valid-google-id-token';
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => updatedPayload
+        })
+      }))
 
-      const createUserMock = jest.fn().mockResolvedValue({ _id: newUserId });
-      const loginMock = jest.fn().mockResolvedValue({
-        accessToken: 'new-access-token',
-        refreshToken: 'new-refresh-token',
-      });
+      // Повторный вход
+      await app
+        .post('/auth/google-login')
+        .send({
+          token: mockValidGoogleToken
+        })
 
-      // Замокируем поведение authService для создания пользователя и логина
-      authService.mockImplementationOnce(createUserMock).mockImplementationOnce(loginMock);
+      // Проверяем обновление данных
+      const user = await getUserByEmail(mockGooglePayload.email)
+      expect(user.firstName).toBe('Jane')
+    })
 
-      const response = await app.post('/auth/google-login').send({ idToken: validIdToken });
+    it('should fail with invalid Google token', async () => {
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token'))
+      }))
 
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-      expect(createUserMock).toHaveBeenCalledWith(
-        'Jane', // first name
-        'Doe',  // last name
-        'newuser@example.com', // email
-        null,   // password (не используется)
-        true    // email confirmed
-      );
-      expect(loginMock).toHaveBeenCalledWith('newuser@example.com', null, true);
-    });
+      const response = await app
+        .post('/auth/google-login')
+        .send({
+          token: { credential: 'invalid.token' },
+          role: 'student'
+        })
 
-    it('should throw an error for invalid Google ID token', async () => {
-      mockVerifyIdToken.mockRejectedValue(new Error('Invalid ID token'));
+      expectError(400, errors.INVALID_GOOGLE_TOKEN, response)
+    })
 
-      const invalidIdToken = 'invalid-google-id-token';
-      const response = await app.post('/auth/google-login').send({ idToken: invalidIdToken });
+    it('should fail when email is not verified', async () => {
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => ({
+            ...mockGooglePayload,
+            email_verified: false
+          })
+        })
+      }))
 
-      expect(response.status).toBe(401);
-      expect(response.body.error).toBe('Invalid ID token');
-    });
+      const response = await app
+        .post('/auth/google-login')
+        .send({ token: mockValidGoogleToken,
+          role: 'student'})
 
-    it('should throw an error if user does not exist in the database', async () => {
-      mockVerifyIdToken.mockResolvedValue({
-        getPayload: () => ({
-          email: 'nonexistentuser@example.com',
-          given_name: 'Nonexistent',
-          family_name: 'User',
-        }),
-      });
+      expectError(401, errors.EMAIL_NOT_CONFIRMED, response)
+    })
 
-      const nonExistentIdToken = 'nonexistent-google-id-token';
-      const response = await app.post('/auth/google-login').send({ idToken: nonExistentIdToken });
+    it('should fail without token', async () => {
+      const response = await app
+        .post('/auth/google-login')
+        .send({})
 
-      expect(response.status).toBe(200); // Ответ будет успешным, так как пользователь создается
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('refreshToken');
-    });
-  });
+      expect(response.status).toBe(422)
+    })
+
+    it('should fail with invalid role', async () => {
+      const response = await app
+        .post('/auth/google-login')
+        .send({
+          token: mockValidGoogleToken,
+          role: 'invalid_role'
+        })
+
+      expect(response.status).toBe(422)
+    })
+
+    it('should preserve user data on subsequent logins', async () => {
+      // Первый вход создает пользователя
+      await app
+        .post('/auth/google-login')
+        .send({
+          token: mockValidGoogleToken,
+          role: 'student'
+        })
+
+      // Модифицируем данные пользователя
+      const user = await getUserByEmail(mockGooglePayload.email)
+      await privateUpdateUser(user._id, {
+        professionalSummary: 'Test summary'
+      })
+
+      // Повторный вход
+      await app
+        .post('/auth/google-login')
+        .send({ token: mockValidGoogleToken })
+
+      // Проверяем, что данные сохранились
+      const updatedUser = await getUserByEmail(mockGooglePayload.email)
+      expect(updatedUser.professionalSummary).toBe('Test summary')
+    })
+  })
 })
