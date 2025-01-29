@@ -62,6 +62,95 @@ const userService = {
     })
   },
 
+  createGoogleUser: async ({ role, firstName, lastName, email, appLanguage }) => {
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin'];
+
+    if (!validRoles.includes(role)) {
+      throw createError(422, {
+        message: 'The role you provided is invalid.',
+        code: 'INVALID_ROLE'
+      });
+    }
+
+
+    const duplicateUser = await userService.getUserByEmail(email)
+    if (duplicateUser) {
+      throw createError(409, ALREADY_REGISTERED)
+    }
+
+    /*// Преобразуем роль в строку, если это массив
+    const userRole = Array.isArray(role) ? role[0] : role;
+    console.log('Creating user with role:', userRole); // Логирование роли для проверки
+*/
+    return await User.create({
+      role: role,  // Прямо передаем строку, а не массив
+      firstName,
+      lastName,
+      email,
+      lastLoginAs: role,
+      password: undefined, // Для Google Auth не указываем пароль
+      appLanguage,
+      isEmailConfirmed: true, // Для Google Auth всегда true
+      isGoogleAuth: true, // Устанавливаем флаг, чтобы пароль не был обязательным
+      status: {
+        student: 'blocked',   // Устанавливаем статус для роли student
+        tutor: 'blocked',     // Устанавливаем статус для роли tutor
+        admin: 'blocked',     // Устанавливаем статус для роли admin
+        [role]: 'active'   // Устанавливаем статус только для нужной роли
+      }
+    })
+  },
+
+
+  /*createUser: async (...args) => {
+    let userData
+    if (args.length === 1 && typeof args[0] === 'object') {
+      // Если передан объект, используем его
+      userData = args[0]
+    } else if (args.length === 7) {
+      // Если переданы отдельные параметры, создаём объект
+      userData = {
+        role: args[0],
+        firstName: args[1],
+        lastName: args[2],
+        email: args[3],
+        password: args[4],
+        appLanguage: args[5],
+        isEmailConfirmed: args[6]
+      }
+
+    }
+
+    const { role, firstName, lastName, email, password, appLanguage, isEmailConfirmed = false } = userData
+
+    const duplicateUser = await userService.getUserByEmail(email)
+    if (duplicateUser) {
+      throw createError(409, ALREADY_REGISTERED)
+    }
+
+    return await User.create({
+      role,
+      firstName,
+      lastName,
+      email,
+      lastLoginAs: role,
+      password,
+      appLanguage,
+      isEmailConfirmed
+    })
+  },*/
+
+
+
+
+
+
+
+
+
+
+
+
   privateUpdateUser: async (id, param) => {
     const user = await User.findByIdAndUpdate(id, param, { new: true }).exec()
 

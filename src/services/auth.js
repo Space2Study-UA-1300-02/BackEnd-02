@@ -1,7 +1,7 @@
 const { OAuth2Client } = require('google-auth-library')
 const tokenService = require('~/services/token')
 const emailService = require('~/services/email')
-const { getUserByEmail, createUser, privateUpdateUser, getUserById } = require('~/services/user')
+const { getUserByEmail, createUser, privateUpdateUser, getUserById, createGoogleUser } = require('~/services/user')
 const { createError } = require('~/utils/errorsHelper')
 const {
   EMAIL_NOT_CONFIRMED,
@@ -114,8 +114,17 @@ const authService = {
   },
 
   googleAuth: async (idToken, role = 'student', language) => {
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin'];
+
+    if (!validRoles.includes(role)) {
+      throw createError(422, {
+        message: 'The role you provided is invalid.',
+        code: 'INVALID_ROLE'
+      });
+    }
+
     if (!idToken) {
-      throw createError(400, INVALID_GOOGLE_TOKEN)
+      throw createError(401, INVALID_GOOGLE_TOKEN);
     }
 
     try {
@@ -133,46 +142,71 @@ const authService = {
 
       const payload = ticket.getPayload()
       if (!payload) {
-        throw createError(400, INVALID_GOOGLE_TOKEN)
+        throw createError(401, INVALID_GOOGLE_TOKEN);  // И тут меняем на 401
       }
 
       const { email, email_verified, given_name: firstName, family_name: lastName } = payload
+      console.log ('payload:', email, email_verified, firstName, lastName)
 
       if (!email_verified) {
-        throw createError(401, EMAIL_NOT_CONFIRMED)
+        throw createError(401, {
+          message: 'Please confirm your email to login.',
+          code: 'EMAIL_NOT_CONFIRMED'
+        })
       }
 
       let user = await getUserByEmail(email)
 
       console.log('Google Auth: Checking if user exists:', { email, userExists: !!user })
 
+      /*// Вызов в googleAuth:
       if (user) {
-        console.log('Google Auth: Updating existing user:', { userId: user._id, firstName, lastName })
+        await privateUpdateUser(user._id, {
+          firstName: firstName || user.firstName,
+          lastName: lastName || user.lastName,
+          lastLogin: new Date()
+        });
+      } else {
+        console.log('Google Auth: Creating new user...');
+        user = await createGoogleUser({ role, firstName, lastName, email, appLanguage: language });
+      }*/
+
+      if (user) {
+        console.log('privateUpdateUser start...')
         await privateUpdateUser(user._id, {
           firstName: firstName || user.firstName,
           lastName: lastName || user.lastName,
           lastLogin: new Date()
         })
       } else {
-        // Создаем нового пользователя
-        const userData = {
-          role: [role], // роль передается как массив согласно схеме
-          firstName: firstName || 'GoogleUser',
-          lastName: lastName || 'NoLastName',
+        console.log('Google Auth: Creating new user...')
+        user = await createGoogleUser({
+          role,
+          firstName,
+          lastName,
           email,
-          password: null, // для Google Auth не используем пароль
-          isEmailConfirmed: true,
-          appLanguage: language || 'en',
-          status: {
-            [role]: 'active'
-          },
-          lastLoginAs: role
-        }
-
-        console.log('Google Auth: Creating new user with data:', userData)
-
-        user = await createUser(userData)
+          appLanguage: language
+        })
       }
+
+
+      /*// Вызов в googleAuth:
+      if (user) {
+        console.log('Google Auth: User exists, updating details...');
+        await privateUpdateUser(user._id, {
+          firstName: firstName || user.firstName,
+          lastName: lastName || user.lastName,
+          lastLogin: new Date(),
+          isEmailConfirmed: true // Добавляем подтверждение email
+        });
+      } else {
+        console.log('Google Auth: Creating new user...');
+        user = await createGoogleUser({ role, firstName, lastName, email, appLanguage: language });
+      }*/
+
+      console.log('new user with data:', user);
+      /*user = await createUser(userData);*/
+
 
       // Генерируем токены
       const tokens = tokenService.generateTokens({
@@ -190,12 +224,26 @@ const authService = {
       return tokens
 
     } catch (error) {
-      if (error.statusCode) {
-        throw error
+      // Логируем ошибку для отслеживания
+      console.error('Google authentication error:', error);
+
+      // Если ошибка связана с неверным токеном, возвращаем 401
+      if (error.message.includes('Invalid token')) {
+        throw createError(401, INVALID_GOOGLE_TOKEN);
       }
-      console.error('Google authentication error:', error)
-      throw createError(500, error.message)
+
+      // Если email не подтвержден, возвращаем 401 с кодом EMAIL_NOT_CONFIRMED
+      if (error.message === 'Please confirm your email to login.') {
+        throw createError(401, {
+          message: 'Please confirm your email to login.',
+          code: 'EMAIL_NOT_CONFIRMED'
+        });
+      }
+
+      // Если ошибка не связана с токеном или email, возвращаем 500
+      throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' });
     }
+
   }
 }
 

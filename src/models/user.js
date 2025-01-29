@@ -25,25 +25,29 @@ const userSchema = new Schema(
     },
     firstName: {
       type: String,
-      required: false, // Убираем обязательность
+      required: [true, FIELD_CANNOT_BE_EMPTY('first name')],
       minLength: [1, FIELD_CANNOT_BE_SHORTER('first name', 1)],
       maxLength: [30, FIELD_CANNOT_BE_LONGER('first name', 30)]
     },
     lastName: {
       type: String,
-      required: false, // Убираем обязательность
+      required: [true, FIELD_CANNOT_BE_EMPTY('last name')],
       minLength: [1, FIELD_CANNOT_BE_SHORTER('last name', 1)],
       maxLength: [30, FIELD_CANNOT_BE_LONGER('last name', 30)]
     },
     email: {
       type: String,
-      required: false, // Убираем обязательность
+      required: [true, FIELD_CANNOT_BE_EMPTY('email')],
       unique: true,
       lowercase: true
     },
+    isGoogleAuth: {
+      type: Boolean,
+      default: false  // По умолчанию false для обычных пользователей
+    },
     password: {
       type: String,
-      required: false, // Убираем обязательность
+      required: function () { return !this.isGoogleAuth }, // Если это не Google аутентификация, то пароль обязателен
       minLength: [8, FIELD_CANNOT_BE_SHORTER('password', 8)],
       select: false
     },
@@ -92,8 +96,7 @@ const userSchema = new Schema(
     },
     isEmailConfirmed: {
       type: Boolean,
-      default: false,
-      select: false
+      default: false
     },
     isFirstLogin: {
       type: Boolean,

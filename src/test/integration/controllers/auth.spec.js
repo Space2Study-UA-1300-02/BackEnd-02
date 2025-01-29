@@ -18,7 +18,7 @@ describe('Auth controller', () => {
 
   // Моки для Google Auth
   const mockGooglePayload = {
-    email: 'test@gmail.com',
+    email: 'google.test@gmail.com',
     email_verified: true,
     given_name: 'John',
     family_name: 'Doe'
@@ -60,6 +60,161 @@ describe('Auth controller', () => {
     email: 'test@gmail.com',
     password: 'testpass_135'
   }
+
+  describe('Google Auth endpoint', () => {
+    it('should preserve user data on subsequent logins', async () => {
+      // Первый вход создает пользователя
+      const firstResponse = await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      console.log('First login response:', firstResponse.body)
+
+      // Проверяем что пользователь создался
+      const user = await getUserByEmail(mockGooglePayload.email)
+      console.log('User after first login:', user)
+
+      if (!user) {
+        throw new Error('User was not created on first login')
+      }
+
+      // Модифицируем данные пользователя
+      await privateUpdateUser(user._id, {
+        professionalSummary: 'Test summary'
+      })
+
+      // Повторный вход
+      const response = await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'student' // добавляем роль
+      })
+
+      expect(response.status).toBe(200)
+
+      // Проверяем, что данные сохранились
+      const updatedUser = await getUserByEmail(mockGooglePayload.email)
+      expect(updatedUser.professionalSummary).toBe('Test summary')
+    })
+
+    it('should successfully authenticate with Google credentials', async () => {
+      const response = await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.body).toHaveProperty('accessToken')
+      expect(response.headers['set-cookie'].some((cookie) => cookie.includes('refreshToken'))).toBe(true)
+    })
+
+    it('should create new user on first Google login', async () => {
+      const response = await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      console.log('Response Body:', response.body) // Логируем ответ
+      console.log('Response Status:', response.status) // Логируем статус ответа
+
+      expect(response.status).toBe(200)
+
+      // Проверяем, что пользователь создан с правильными данными
+      const user = await getUserByEmail(mockGooglePayload.email)
+      console.log('Created User:', user) // Логируем созданного пользователя
+      expect(user).toBeTruthy()
+      expect(user.firstName).toBe(mockGooglePayload.given_name)
+      expect(user.lastName).toBe(mockGooglePayload.family_name)
+      expect(user.isEmailConfirmed).toBe(true)
+      expect(user.role).toContain('student')
+    })
+
+    it('should update existing user on subsequent Google login', async () => {
+      // Сначала создаем пользователя через Google Auth
+      await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      // Меняем имя в моке Google payload
+      const updatedPayload = {
+        ...mockGooglePayload,
+        given_name: 'Jane'
+      }
+      console.log('test updatedPayload:', updatedPayload)
+
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => updatedPayload
+        })
+      }))
+
+      // Повторный вход
+      await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken
+      })
+
+      // Проверяем обновление данных
+      const user = await getUserByEmail(mockGooglePayload.email)
+      expect(user.firstName).toBe('Jane')
+    })
+
+    it('should fail with invalid Google token', async () => {
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token'))
+      }))
+
+      const response = await app.post('/auth/google-login').send({
+        token: { credential: 'invalid.token' },
+        role: 'student'
+      })
+
+      // Ожидаем ошибку в виде объекта
+      expect(response.status).toBe(401) // Статус ошибки должен быть 401
+      expect(response.body).toEqual({
+        error: 'INVALID_GOOGLE_TOKEN',
+        message: 'The Google token name you used is invalid.'
+      }) // Проверяем правильность структуры ошибки
+    })
+
+    it('should fail when email is not verified', async () => {
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => ({
+            ...mockGooglePayload,
+            email_verified: false
+          })
+        })
+      }))
+
+      const response = await app.post('/auth/google-login').send({ token: mockValidGoogleToken, role: 'student' })
+
+      // Ожидаем ошибку в виде объекта
+      expect(response.status).toBe(401) // Статус ошибки должен быть 401
+      expect(response.body).toEqual({
+        error: 'EMAIL_NOT_CONFIRMED',
+        message: 'Please confirm your email to login.'
+      }) // Проверяем правильность структуры ошибки
+    })
+
+    it('should fail without token', async () => {
+      const response = await app.post('/auth/google-login').send({})
+
+      expect(response.status).toBe(422)
+    })
+
+    it('should fail with invalid role', async () => {
+      const response = await app.post('/auth/google-login').send({
+        token: mockValidGoogleToken,
+        role: 'invalid_role'
+      })
+
+      console.log('Response status:', response.status)
+      console.log('Response body:', response.body)
+
+      expect(response.status).toBe(422) // Мы ожидаем 422, если роль некорректна
+    })
+  })
 
   describe('Signup endpoint', () => {
     it('should throw validation errors for the firstName field', async () => {
@@ -142,142 +297,4 @@ describe('Auth controller', () => {
   })
 
 
-  describe('Google Auth endpoint', () => {
-    it('should successfully authenticate with Google credentials', async () => {
-      const response = await app
-        .post('/auth/google-login')
-        .send({ token: mockValidGoogleToken,
-          role: 'student'})
-
-      expect(response.status).toBe(200)
-      expect(response.body).toHaveProperty('accessToken')
-      expect(response.headers['set-cookie'].some(cookie => cookie.includes('refreshToken'))).toBe(true)
-    })
-
-    it('should create new user on first Google login', async () => {
-      const response = await app
-        .post('/auth/google-login')
-        .send({
-          token: mockValidGoogleToken,
-          role: 'student'
-        })
-
-      expect(response.status).toBe(200)
-
-      // Проверяем, что пользователь создан с правильными данными
-      const user = await getUserByEmail(mockGooglePayload.email)
-      expect(user).toBeTruthy()
-      expect(user.firstName).toBe(mockGooglePayload.given_name)
-      expect(user.lastName).toBe(mockGooglePayload.family_name)
-      expect(user.isEmailConfirmed).toBe(true)
-      expect(user.role).toContain('student')
-    })
-
-    it('should update existing user on subsequent Google login', async () => {
-      // Сначала создаем пользователя через Google Auth
-      await app
-        .post('/auth/google-login')
-        .send({ token: mockValidGoogleToken })
-
-      // Меняем имя в моке Google payload
-      const updatedPayload = {
-        ...mockGooglePayload,
-        given_name: 'Jane'
-      }
-
-      OAuth2Client.mockImplementation(() => ({
-        verifyIdToken: jest.fn().mockResolvedValue({
-          getPayload: () => updatedPayload
-        })
-      }))
-
-      // Повторный вход
-      await app
-        .post('/auth/google-login')
-        .send({
-          token: mockValidGoogleToken
-        })
-
-      // Проверяем обновление данных
-      const user = await getUserByEmail(mockGooglePayload.email)
-      expect(user.firstName).toBe('Jane')
-    })
-
-    it('should fail with invalid Google token', async () => {
-      OAuth2Client.mockImplementation(() => ({
-        verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token'))
-      }))
-
-      const response = await app
-        .post('/auth/google-login')
-        .send({
-          token: { credential: 'invalid.token' },
-          role: 'student'
-        })
-
-      expectError(400, errors.INVALID_GOOGLE_TOKEN, response)
-    })
-
-    it('should fail when email is not verified', async () => {
-      OAuth2Client.mockImplementation(() => ({
-        verifyIdToken: jest.fn().mockResolvedValue({
-          getPayload: () => ({
-            ...mockGooglePayload,
-            email_verified: false
-          })
-        })
-      }))
-
-      const response = await app
-        .post('/auth/google-login')
-        .send({ token: mockValidGoogleToken,
-          role: 'student'})
-
-      expectError(401, errors.EMAIL_NOT_CONFIRMED, response)
-    })
-
-    it('should fail without token', async () => {
-      const response = await app
-        .post('/auth/google-login')
-        .send({})
-
-      expect(response.status).toBe(422)
-    })
-
-    it('should fail with invalid role', async () => {
-      const response = await app
-        .post('/auth/google-login')
-        .send({
-          token: mockValidGoogleToken,
-          role: 'invalid_role'
-        })
-
-      expect(response.status).toBe(422)
-    })
-
-    it('should preserve user data on subsequent logins', async () => {
-      // Первый вход создает пользователя
-      await app
-        .post('/auth/google-login')
-        .send({
-          token: mockValidGoogleToken,
-          role: 'student'
-        })
-
-      // Модифицируем данные пользователя
-      const user = await getUserByEmail(mockGooglePayload.email)
-      await privateUpdateUser(user._id, {
-        professionalSummary: 'Test summary'
-      })
-
-      // Повторный вход
-      await app
-        .post('/auth/google-login')
-        .send({ token: mockValidGoogleToken })
-
-      // Проверяем, что данные сохранились
-      const updatedUser = await getUserByEmail(mockGooglePayload.email)
-      expect(updatedUser.professionalSummary).toBe('Test summary')
-    })
-  })
 })

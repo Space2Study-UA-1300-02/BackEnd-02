@@ -86,17 +86,17 @@ const updatePassword = async (req, res) => {
   res.status(204).end()
 }
 
-const authGoogle = async (req, res) => {
+const googleAuth = async (req, res) => {
   try {
     const { token, role } = req.body
     const lang = req.lang
 
     // Проверяем, что токен Google передан в запросе
     if (!token?.credential) {
-      return res.status(400).json({
+      return res.status(422).json({
         message: 'Google token is required',
         error: 'INVALID_GOOGLE_TOKEN'
-      })
+      });
     }
 
     console.log('Google token:', token) // Логируем токен для отладки
@@ -120,10 +120,22 @@ const authGoogle = async (req, res) => {
     return res.status(200).json(tokens)
   } catch (error) {
     // Логируем ошибку, если она произошла на каком-либо этапе
-    console.error('Google authentication error:', error)
+    console.error('Google authentication error:', error);
+    console.error('Error details:', error);
+
+
+    if (error.status === 422) {
+      return res.status(422).json({
+        message: error.message,
+        error: error.code
+      });
+    }
 
     // Возвращаем ошибку с кодом, который был передан в исключении (или 500 по умолчанию)
-    return res.status(error.status || 500).json({ message: error.message, error: error.code })
+    return res.status(error.status || 500).json({
+      message: error.message,
+      error: error.code || 'INTERNAL_SERVER_ERROR'
+    });
   }
 }
 
@@ -134,6 +146,6 @@ module.exports = {
   refreshAccessToken,
   sendResetPasswordEmail,
   updatePassword,
-  authGoogle // Добавили новый метод для Google логина
+  googleAuth // Добавили новый метод для Google логина
 
 }
