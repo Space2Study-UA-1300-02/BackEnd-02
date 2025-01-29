@@ -43,11 +43,11 @@ const userSchema = new Schema(
     },
     isGoogleAuth: {
       type: Boolean,
-      default: false  // По умолчанию false для обычных пользователей
+      default: false
     },
     password: {
       type: String,
-      required: function () { return !this.isGoogleAuth }, // Если это не Google аутентификация, то пароль обязателен
+      required: function () { return !this.isGoogleAuth },
       minLength: [8, FIELD_CANNOT_BE_SHORTER('password', 8)],
       select: false
     },

@@ -6,7 +6,6 @@ const langMiddleware = require('~/middlewares/appLanguage')
 
 const authController = require('~/controllers/auth')
 const signupValidationSchema = require('~/validation/schemas/signup')
-const { googleAuthValidationSchema } = require('~/validation/schemas/googleAuth')
 const { loginValidationSchema } = require('~/validation/schemas/login')
 const resetPasswordValidationSchema = require('~/validation/schemas/resetPassword')
 const forgotPasswordValidationSchema = require('~/validation/schemas/forgotPassword')
@@ -20,7 +19,6 @@ router.post(
 router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(authController.login))
 router.post(
   '/google-login',
-  /*validationMiddleware(googleAuthValidationSchema),*/
   langMiddleware,
   asyncWrapper(authController.googleAuth)
 )

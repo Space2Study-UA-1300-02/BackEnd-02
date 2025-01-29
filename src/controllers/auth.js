@@ -91,53 +91,46 @@ const googleAuth = async (req, res) => {
     const { token, role } = req.body
     const lang = req.lang
 
-    // Проверяем, что токен Google передан в запросе
     if (!token?.credential) {
       return res.status(422).json({
         message: 'Google token is required',
         error: 'INVALID_GOOGLE_TOKEN'
-      });
+      })
     }
 
-    console.log('Google token:', token) // Логируем токен для отладки
+    console.log('Google token:', token)
 
-    // Вызов сервиса для аутентификации через Google
     const tokens = await authService.googleAuth(token.credential, role, lang)
 
     console.log('Setting cookies:', {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken
-    }) // Логируем токены перед их установкой в cookies
+    })
 
-    // Устанавливаем cookies с accessToken и refreshToken
     res.cookie(ACCESS_TOKEN, tokens.accessToken, COOKIE_OPTIONS)
     res.cookie(REFRESH_TOKEN, tokens.refreshToken, COOKIE_OPTIONS)
 
-    // Удаляем refreshToken из ответа, так как его не нужно возвращать клиенту
     delete tokens.refreshToken
 
-    // Возвращаем успешный ответ с токенами
     return res.status(200).json(tokens)
   } catch (error) {
-    // Логируем ошибку, если она произошла на каком-либо этапе
-    console.error('Google authentication error:', error);
-    console.error('Error details:', error);
-
+    console.error('Google authentication error:', error)
+    console.error('Error details:', error)
 
     if (error.status === 422) {
       return res.status(422).json({
         message: error.message,
         error: error.code
-      });
+      })
     }
 
-    // Возвращаем ошибку с кодом, который был передан в исключении (или 500 по умолчанию)
     return res.status(error.status || 500).json({
       message: error.message,
       error: error.code || 'INTERNAL_SERVER_ERROR'
-    });
+    })
   }
 }
+
 
 module.exports = {
   signup,
@@ -146,6 +139,6 @@ module.exports = {
   refreshAccessToken,
   sendResetPasswordEmail,
   updatePassword,
-  googleAuth // Добавили новый метод для Google логина
+  googleAuth
 
 }

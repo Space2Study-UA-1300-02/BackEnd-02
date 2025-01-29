@@ -114,17 +114,17 @@ const authService = {
   },
 
   googleAuth: async (idToken, role = 'student', language) => {
-    const validRoles = ['student', 'tutor', 'admin', 'superadmin'];
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin']
 
     if (!validRoles.includes(role)) {
       throw createError(422, {
         message: 'The role you provided is invalid.',
         code: 'INVALID_ROLE'
-      });
+      })
     }
 
     if (!idToken) {
-      throw createError(401, INVALID_GOOGLE_TOKEN);
+      throw createError(401, INVALID_GOOGLE_TOKEN)
     }
 
     try {
@@ -137,16 +137,16 @@ const authService = {
 
       const ticket = await client.verifyIdToken({
         idToken,
-        audience: clientId,
+        audience: clientId
       })
 
       const payload = ticket.getPayload()
       if (!payload) {
-        throw createError(401, INVALID_GOOGLE_TOKEN);  // И тут меняем на 401
+        throw createError(401, INVALID_GOOGLE_TOKEN)
       }
 
       const { email, email_verified, given_name: firstName, family_name: lastName } = payload
-      console.log ('payload:', email, email_verified, firstName, lastName)
+      console.log('payload:', email, email_verified, firstName, lastName)
 
       if (!email_verified) {
         throw createError(401, {
@@ -179,8 +179,6 @@ const authService = {
 
       console.log('new user with data:', user)
 
-
-      // Генерируем токены
       const tokens = tokenService.generateTokens({
         id: user._id,
         role: user.lastLoginAs || role,
@@ -196,26 +194,21 @@ const authService = {
       return tokens
 
     } catch (error) {
-      // Логируем ошибку для отслеживания
-      console.error('Google authentication error:', error);
+      console.error('Google authentication error:', error)
 
-      // Если ошибка связана с неверным токеном, возвращаем 401
       if (error.message.includes('Invalid token')) {
-        throw createError(401, INVALID_GOOGLE_TOKEN);
+        throw createError(401, INVALID_GOOGLE_TOKEN)
       }
 
-      // Если email не подтвержден, возвращаем 401 с кодом EMAIL_NOT_CONFIRMED
       if (error.message === 'Please confirm your email to login.') {
         throw createError(401, {
           message: 'Please confirm your email to login.',
           code: 'EMAIL_NOT_CONFIRMED'
-        });
+        })
       }
 
-      // Если ошибка не связана с токеном или email, возвращаем 500
-      throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' });
+      throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' })
     }
-
   }
 }
 
