@@ -63,90 +63,82 @@ const userService = {
   },
 
   createGoogleUser: async ({ role, firstName, lastName, email, appLanguage }) => {
-    const validRoles = ['student', 'tutor', 'admin', 'superadmin'];
+    // Дозволені ролі для користувачів
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin']
 
+    // Перевірка, чи роль користувача є валідною
     if (!validRoles.includes(role)) {
       throw createError(422, {
-        message: 'The role you provided is invalid.',
-        code: 'INVALID_ROLE'
-      });
+        message: 'The role you provided is invalid.',  // Повідомлення про помилку
+        code: 'INVALID_ROLE'  // Код помилки
+      })
     }
 
-
+    // Перевірка, чи вже існує користувач з таким email
     const duplicateUser = await userService.getUserByEmail(email)
     if (duplicateUser) {
-      throw createError(409, ALREADY_REGISTERED)
+      throw createError(409, ALREADY_REGISTERED)  // Помилка, якщо користувач вже зареєстрований
     }
 
-    /*// Преобразуем роль в строку, если это массив
-    const userRole = Array.isArray(role) ? role[0] : role;
-    console.log('Creating user with role:', userRole); // Логирование роли для проверки
-*/
+    // Створення нового користувача з переданими даними
     return await User.create({
-      role: role,  // Прямо передаем строку, а не массив
-      firstName,
-      lastName,
-      email,
-      lastLoginAs: role,
-      password: undefined, // Для Google Auth не указываем пароль
-      appLanguage,
-      isEmailConfirmed: true, // Для Google Auth всегда true
-      isGoogleAuth: true, // Устанавливаем флаг, чтобы пароль не был обязательным
+      role: role,  // Прямо передаємо роль як строку
+      firstName,  // Ім'я користувача
+      lastName,   // Прізвище користувача
+      email,      // Email користувача
+      lastLoginAs: role,  // Вказуємо роль при останньому вході
+      password: undefined,  // Для Google Auth пароль не потрібен
+      appLanguage,  // Мова застосунку
+      isEmailConfirmed: true,  // Для Google Auth email завжди підтверджений
+      isGoogleAuth: true,  // Встановлюємо прапорець для Google Auth, щоб пароль не був обов'язковим
       status: {
-        student: 'blocked',   // Устанавливаем статус для роли student
-        tutor: 'blocked',     // Устанавливаем статус для роли tutor
-        admin: 'blocked',     // Устанавливаем статус для роли admin
-        [role]: 'active'   // Устанавливаем статус только для нужной роли
+        student: 'blocked',   // Статус "blocked" для ролі студент
+        tutor: 'blocked',     // Статус "blocked" для ролі викладач
+        admin: 'blocked',     // Статус "blocked" для ролі адміністратор
+        [role]: 'active'   // Статус "active" для обраної ролі
       }
     })
   },
 
 
-  /*createUser: async (...args) => {
-    let userData
-    if (args.length === 1 && typeof args[0] === 'object') {
-      // Если передан объект, используем его
-      userData = args[0]
-    } else if (args.length === 7) {
-      // Если переданы отдельные параметры, создаём объект
-      userData = {
-        role: args[0],
-        firstName: args[1],
-        lastName: args[2],
-        email: args[3],
-        password: args[4],
-        appLanguage: args[5],
-        isEmailConfirmed: args[6]
-      }
 
+/*createUser: async (...args) => {
+  let userData
+  if (args.length === 1 && typeof args[0] === 'object') {
+    // Если передан объект, используем его
+    userData = args[0]
+  } else if (args.length === 7) {
+    // Если переданы отдельные параметры, создаём объект
+    userData = {
+      role: args[0],
+      firstName: args[1],
+      lastName: args[2],
+      email: args[3],
+      password: args[4],
+      appLanguage: args[5],
+      isEmailConfirmed: args[6]
     }
 
-    const { role, firstName, lastName, email, password, appLanguage, isEmailConfirmed = false } = userData
+  }
 
-    const duplicateUser = await userService.getUserByEmail(email)
-    if (duplicateUser) {
-      throw createError(409, ALREADY_REGISTERED)
-    }
+  const { role, firstName, lastName, email, password, appLanguage, isEmailConfirmed = false } = userData
 
-    return await User.create({
-      role,
-      firstName,
-      lastName,
-      email,
-      lastLoginAs: role,
-      password,
-      appLanguage,
-      isEmailConfirmed
-    })
-  },*/
+  const duplicateUser = await userService.getUserByEmail(email)
+  if (duplicateUser) {
+    throw createError(409, ALREADY_REGISTERED)
+  }
 
-
-
-
-
-
-
-
+  return await User.create({
+    role,
+    firstName,
+    lastName,
+    email,
+    lastLoginAs: role,
+    password,
+    appLanguage,
+    isEmailConfirmed
+  })
+},*/
 
 
 

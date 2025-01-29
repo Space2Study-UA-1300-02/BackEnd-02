@@ -1,15 +1,21 @@
-// validation/schemas/googleAuth.js
+// Імпортуємо бібліотеку Zod для валідації
 const { z } = require('zod')
+// Імпортуємо список дозволених ролей користувачів
 const { enums: { ROLE_ENUM } } = require('~/consts/validation')
 
+// Визначаємо схему валідації для даних, що надходять з запиту на Google авторизацію
 const googleAuthValidationSchema = z.object({
   token: z.object({
+    // Поле credential обов'язкове і має бути рядком з мінімум 1 символом
     credential: z.string().min(1, 'Credential is required')
   }),
-  role: z.enum(ROLE_ENUM) // Для роли используем z.enum
+  // Поле role повинно відповідати одному з дозволених значень ролей
+  role: z.enum(ROLE_ENUM)  // Для ролі використовуємо z.enum
 })
 
+// Експортуємо схему для використання в інших частинах програми
 module.exports = googleAuthValidationSchema
+
 
 /*
 

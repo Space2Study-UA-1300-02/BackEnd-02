@@ -159,18 +159,6 @@ const authService = {
 
       console.log('Google Auth: Checking if user exists:', { email, userExists: !!user })
 
-      /*// Вызов в googleAuth:
-      if (user) {
-        await privateUpdateUser(user._id, {
-          firstName: firstName || user.firstName,
-          lastName: lastName || user.lastName,
-          lastLogin: new Date()
-        });
-      } else {
-        console.log('Google Auth: Creating new user...');
-        user = await createGoogleUser({ role, firstName, lastName, email, appLanguage: language });
-      }*/
-
       if (user) {
         console.log('privateUpdateUser start...')
         await privateUpdateUser(user._id, {
@@ -189,23 +177,7 @@ const authService = {
         })
       }
 
-
-      /*// Вызов в googleAuth:
-      if (user) {
-        console.log('Google Auth: User exists, updating details...');
-        await privateUpdateUser(user._id, {
-          firstName: firstName || user.firstName,
-          lastName: lastName || user.lastName,
-          lastLogin: new Date(),
-          isEmailConfirmed: true // Добавляем подтверждение email
-        });
-      } else {
-        console.log('Google Auth: Creating new user...');
-        user = await createGoogleUser({ role, firstName, lastName, email, appLanguage: language });
-      }*/
-
-      console.log('new user with data:', user);
-      /*user = await createUser(userData);*/
+      console.log('new user with data:', user)
 
 
       // Генерируем токены
