@@ -193,6 +193,88 @@ describe('Auth controller', () => {
     })
   })
 
+  describe('Email confirmation endpoint', () => {
+    let confirmToken // Змінна для зберігання токену підтвердження
+    let userId // Змінна для зберігання ID користувача
+
+    beforeEach(async () => {
+      // Зберігаємо userId з відповіді на реєстрацію
+      userId = signupResponse.body.userId
+
+      // Перевіряємо, що користувач дійсно створений у базі даних
+      const userBeforeToken = await getUserByEmail(user.email)
+      console.log('User before token generation:', userBeforeToken)
+
+      // Генеруємо токен підтвердження та зберігаємо його в базі даних
+      confirmToken = tokenService.generateConfirmToken({
+        id: userId,
+        role: user.role
+      })
+      await tokenService.saveToken(userId, confirmToken, 'confirmToken')
+
+      // Логуємо згенерований токен для перевірки
+      console.log('Generated token:', confirmToken)
+    })
+
+    it('should successfully confirm email', async () => {
+      // Перевіряємо, що користувач існує перед підтвердженням email
+      const userBefore = await getUserByEmail(user.email)
+      console.log('User before confirmation:', userBefore)
+
+      // Виконуємо GET-запит для підтвердження email з використанням токену
+      const response = await app
+        .get(`/auth/confirm-email/${confirmToken}`)
+
+      // Логуємо статус відповіді та тіло відповіді
+      console.log('Response status:', response.status)
+      console.log('Response body:', response.body)
+
+      // Перевіряємо, що статус відповіді 204 (No Content)
+      expect(response.status).toBe(204)
+
+      // Отримуємо оновлені дані користувача після підтвердження email
+      const updatedUser = await getUserByEmail(user.email)
+      console.log('Updated user:', updatedUser)
+
+      // Перевіряємо, що поле isEmailConfirmed стало true
+      expect(updatedUser.isEmailConfirmed).toBe(true)
+    })
+
+    it('should fail with invalid token', async () => {
+      // Виконуємо GET-запит з невалідним токеном
+      const response = await app
+        .get('/auth/confirm-email/invalid-token')
+
+      // Перевіряємо, що відповідь містить помилку 400 та відповідне повідомлення
+      expectError(400, errors.BAD_CONFIRM_TOKEN, response)
+    })
+
+    it('should fail if token not found in DB', async () => {
+      // Видаляємо токен з бази даних
+      await Token.deleteOne({ confirmToken })
+
+      // Виконуємо GET-запит з токеном, якого немає в базі даних
+      const response = await app
+        .get(`/auth/confirm-email/${confirmToken}`)
+
+      // Перевіряємо, що відповідь містить помилку 400 та відповідне повідомлення
+      expectError(400, errors.BAD_CONFIRM_TOKEN, response)
+    })
+
+    it('should prevent login with unconfirmed email', async () => {
+      // Виконуємо POST-запит для входу з непідтвердженим email
+      const loginResponse = await app
+        .post('/auth/login')
+        .send({
+          email: user.email,
+          password: user.password
+        })
+
+      // Перевіряємо, що відповідь містить помилку 401 та відповідне повідомлення
+      expectError(401, errors.EMAIL_NOT_CONFIRMED, loginResponse)
+    })
+  })
+
   describe('Signup endpoint', () => {
     it('should throw validation errors for the firstName field', async () => {
       const responseForFormat = await app.post('/auth/signup').send({ ...user, firstName: '12345' })
