@@ -12,16 +12,18 @@ const OAuth2 = google.auth.OAuth2
 const getAccessToken = async () => {
   try {
     const oAuth2Client = new OAuth2(clientId, clientSecret, redirectUri)
-
     oAuth2Client.setCredentials({ refresh_token: refreshToken })
-    const accessToken = await oAuth2Client.getAccessToken()
 
-    return accessToken
+    const { token } = await oAuth2Client.getAccessToken()
+    if (!token) throw new Error('Access token retrieval failed')
+
+    return token 
   } catch (err) {
-    logger.error(err)
+    logger.error('Error getting access token:', err)
     throw createError(400, API_TOKEN_NOT_RETRIEVED)
   }
 }
+
 
 const createTransport = async () => {
   try {

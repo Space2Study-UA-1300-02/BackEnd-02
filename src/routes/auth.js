@@ -18,7 +18,7 @@ router.post(
 )
 router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(authController.login))
 router.post(
-  '/google-login',
+  '/google-auth',
   langMiddleware,
   asyncWrapper(authController.googleAuth)
 )

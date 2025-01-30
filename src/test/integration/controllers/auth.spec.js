@@ -60,7 +60,7 @@ describe('Auth controller', () => {
 
   describe('Google Auth endpoint', () => {
     it('should preserve user data on subsequent logins', async () => {
-      const firstResponse = await app.post('/auth/google-login').send({
+      const firstResponse = await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'student'
       })
@@ -75,7 +75,7 @@ describe('Auth controller', () => {
         professionalSummary: 'Test summary'
       })
 
-      const response = await app.post('/auth/google-login').send({
+      const response = await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'student'
       })
@@ -87,7 +87,7 @@ describe('Auth controller', () => {
     })
 
     it('should successfully authenticate with Google credentials', async () => {
-      const response = await app.post('/auth/google-login').send({
+      const response = await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'student'
       })
@@ -98,7 +98,7 @@ describe('Auth controller', () => {
     })
 
     it('should create new user on first Google login', async () => {
-      const response = await app.post('/auth/google-login').send({
+      const response = await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'student'
       })
@@ -115,7 +115,7 @@ describe('Auth controller', () => {
     })
 
     it('should update existing user on subsequent Google login', async () => {
-      await app.post('/auth/google-login').send({
+      await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'student'
       })
@@ -131,7 +131,7 @@ describe('Auth controller', () => {
         })
       }))
 
-      await app.post('/auth/google-login').send({
+      await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken
       })
 
@@ -144,7 +144,7 @@ describe('Auth controller', () => {
         verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token'))
       }))
 
-      const response = await app.post('/auth/google-login').send({
+      const response = await app.post('/auth/google-auth').send({
         token: { credential: 'invalid.token' },
         role: 'student'
       })
@@ -158,12 +158,12 @@ describe('Auth controller', () => {
 
 
     it('should fail without token', async () => {
-      const response = await app.post('/auth/google-login').send({})
+      const response = await app.post('/auth/google-auth').send({})
       expect(response.status).toBe(422)
     })
 
     it('should fail with invalid role', async () => {
-      const response = await app.post('/auth/google-login').send({
+      const response = await app.post('/auth/google-auth').send({
         token: mockValidGoogleToken,
         role: 'invalid_role'
       })
