@@ -86,11 +86,59 @@ const updatePassword = async (req, res) => {
   res.status(204).end()
 }
 
+const googleAuth = async (req, res) => {
+  try {
+    const { token, role } = req.body
+    const lang = req.lang
+
+    if (!token?.credential) {
+      return res.status(422).json({
+        message: 'Google token is required',
+        error: 'INVALID_GOOGLE_TOKEN'
+      })
+    }
+
+    console.log('Google token:', token)
+
+    const tokens = await authService.googleAuth(token.credential, role, lang)
+
+    console.log('Setting cookies:', {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
+    })
+
+    res.cookie(ACCESS_TOKEN, tokens.accessToken, COOKIE_OPTIONS)
+    res.cookie(REFRESH_TOKEN, tokens.refreshToken, COOKIE_OPTIONS)
+
+    delete tokens.refreshToken
+
+    return res.status(200).json(tokens)
+  } catch (error) {
+    console.error('Google authentication error:', error)
+    console.error('Error details:', error)
+
+    if (error.status === 422) {
+      return res.status(422).json({
+        message: error.message,
+        error: error.code
+      })
+    }
+
+    return res.status(error.status || 500).json({
+      message: error.message,
+      error: error.code || 'INTERNAL_SERVER_ERROR'
+    })
+  }
+}
+
+
 module.exports = {
   signup,
   login,
   logout,
   refreshAccessToken,
   sendResetPasswordEmail,
-  updatePassword
+  updatePassword,
+  googleAuth
+
 }

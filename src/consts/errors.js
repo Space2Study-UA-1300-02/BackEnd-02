@@ -79,6 +79,10 @@ const errors = {
     code: 'INVALID_TOKEN_NAME',
     message: 'The token name you used is invalid.'
   },
+  INVALID_GOOGLE_TOKEN: {
+    code: 'INVALID_GOOGLE_TOKEN',
+    message: 'The Google token name you used is invalid.'
+  },
   INVALID_ID: {
     code: 'INVALID_ID',
     message: 'ID is invalid.'

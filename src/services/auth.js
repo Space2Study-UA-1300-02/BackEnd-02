@@ -1,10 +1,12 @@
+const { OAuth2Client } = require('google-auth-library')
 const tokenService = require('~/services/token')
 const emailService = require('~/services/email')
-const { getUserByEmail, createUser, privateUpdateUser, getUserById } = require('~/services/user')
+const { getUserByEmail, createUser, privateUpdateUser, getUserById, createGoogleUser } = require('~/services/user')
 const { createError } = require('~/utils/errorsHelper')
 const {
   EMAIL_NOT_CONFIRMED,
   INCORRECT_CREDENTIALS,
+  INVALID_GOOGLE_TOKEN,
   BAD_RESET_TOKEN,
   BAD_REFRESH_TOKEN,
   USER_NOT_FOUND
@@ -109,7 +111,106 @@ const authService = {
     await emailService.sendEmail(email, emailSubject.SUCCESSFUL_PASSWORD_RESET, language, {
       firstName
     })
+  },
+
+  googleAuth: async (idToken, role = 'student', language) => {
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin']
+
+    if (!validRoles.includes(role)) {
+      throw createError(422, {
+        message: 'The role you provided is invalid.',
+        code: 'INVALID_ROLE'
+      })
+    }
+
+    if (!idToken) {
+      throw createError(401, INVALID_GOOGLE_TOKEN)
+    }
+
+    try {
+      const clientId = process.env.GMAIL_CLIENT_ID
+      if (!clientId) {
+        throw new Error('Google Client ID is not configured')
+      }
+
+      const client = new OAuth2Client(clientId)
+
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: clientId
+      })
+
+      const payload = ticket.getPayload()
+      if (!payload) {
+        throw createError(401, INVALID_GOOGLE_TOKEN)
+      }
+
+      const { email, email_verified, given_name: firstName, family_name: lastName } = payload
+      console.log('payload:', email, email_verified, firstName, lastName)
+
+      if (!email_verified) {
+        throw createError(401, {
+          message: 'Please confirm your email to login.',
+          code: 'EMAIL_NOT_CONFIRMED'
+        })
+      }
+
+      let user = await getUserByEmail(email)
+
+      console.log('Google Auth: Checking if user exists:', { email, userExists: !!user })
+
+      if (user) {
+        console.log('privateUpdateUser start...')
+        await privateUpdateUser(user._id, {
+          firstName: firstName || user.firstName,
+          lastName: lastName || user.lastName,
+          lastLogin: new Date()
+        })
+      } else {
+        console.log('Google Auth: Creating new user...')
+        user = await createGoogleUser({
+          role,
+          firstName,
+          lastName,
+          email,
+          appLanguage: language
+        })
+      }
+
+      console.log('new user with data:', user)
+
+      const tokens = tokenService.generateTokens({
+        id: user._id,
+        role: user.lastLoginAs || role,
+        isFirstLogin: user.isFirstLogin
+      })
+
+      await tokenService.saveToken(user._id, tokens.refreshToken, REFRESH_TOKEN)
+
+      if (user.isFirstLogin) {
+        await privateUpdateUser(user._id, { isFirstLogin: false })
+      }
+
+      return tokens
+
+    } catch (error) {
+      console.error('Google authentication error:', error)
+
+      if (error.message.includes('Invalid token')) {
+        throw createError(401, INVALID_GOOGLE_TOKEN)
+      }
+
+      if (error.message === 'Please confirm your email to login.') {
+        throw createError(401, {
+          message: 'Please confirm your email to login.',
+          code: 'EMAIL_NOT_CONFIRMED'
+        })
+      }
+
+      throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' })
+    }
   }
 }
+
 
 module.exports = authService
