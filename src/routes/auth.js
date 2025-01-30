@@ -37,8 +37,8 @@ router.patch(
   asyncWrapper(authController.updatePassword)
 )
 router.get(
-  '/confirm-email/:token', // Ендпоінт для підтвердження email
-  asyncWrapper(authController.confirmEmail) // Обробник запиту
+  '/confirm-email/:token',
+  asyncWrapper(authController.confirmEmail)
 )
 
 module.exports = router

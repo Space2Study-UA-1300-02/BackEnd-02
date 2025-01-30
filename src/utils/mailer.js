@@ -38,7 +38,7 @@ const createTransport = async () => {
         accessToken
       },
       tls: {
-        rejectUnauthorized: false // Вимкнення перевірки SSL-сертифіката (для локальної розробки)}
+        rejectUnauthorized: false
       }
     })
 
