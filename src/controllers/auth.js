@@ -132,7 +132,7 @@ const googleAuth = async (req, res) => {
 }
 
 const confirmEmail = async (req, res) => {
-  const { token } = req.params 
+  const { token } = req.params
   await authService.confirmEmail(token)
   res.status(204).end()
 }

@@ -156,27 +156,6 @@ describe('Auth controller', () => {
       })
     })
 
-    it('should fail when email is not verified', async () => {
-      OAuth2Client.mockImplementation(() => ({
-        verifyIdToken: jest.fn().mockResolvedValue({
-          getPayload: () => ({
-            ...mockGooglePayload,
-            email_verified: false
-          })
-        })
-      }))
-
-      const response = await app.post('/auth/google-login').send({
-        token: mockValidGoogleToken,
-        role: 'student'
-      })
-
-      expect(response.status).toBe(401)
-      expect(response.body).toEqual({
-        error: 'EMAIL_NOT_CONFIRMED',
-        message: 'Please confirm your email to login.'
-      })
-    })
 
     it('should fail without token', async () => {
       const response = await app.post('/auth/google-login').send({})

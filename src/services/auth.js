@@ -149,12 +149,6 @@ const authService = {
       const { email, email_verified, given_name: firstName, family_name: lastName } = payload
       console.log('payload:', email, email_verified, firstName, lastName)
 
-      if (!email_verified) {
-        throw createError(401, {
-          message: 'Please confirm your email to login.',
-          code: 'EMAIL_NOT_CONFIRMED'
-        })
-      }
 
       let user = await getUserByEmail(email)
 
@@ -199,13 +193,6 @@ const authService = {
 
       if (error.message.includes('Invalid token')) {
         throw createError(401, INVALID_GOOGLE_TOKEN)
-      }
-
-      if (error.message === 'Please confirm your email to login.') {
-        throw createError(401, {
-          message: 'Please confirm your email to login.',
-          code: 'EMAIL_NOT_CONFIRMED'
-        })
       }
 
       throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' })
