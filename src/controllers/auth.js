@@ -132,9 +132,9 @@ const googleAuth = async (req, res) => {
 }
 
 const confirmEmail = async (req, res) => {
-  const { token } = req.params
-  await authService.confirmEmail(token)
-  res.status(204).end()
+  const { token } = req.params // Отримуємо токен з параметрів запиту
+  await authService.confirmEmail(token) // Викликаємо сервіс для підтвердження email
+  res.status(204).end() // Відправляємо відповідь зі статусом 204 (No Content)
 }
 
 module.exports = {

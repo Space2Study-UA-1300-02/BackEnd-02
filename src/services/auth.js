@@ -213,14 +213,21 @@ const authService = {
   },
 
   confirmEmail: async (confirmToken) => {
+    // Валідуємо токен за допомогою tokenService
     const tokenData = tokenService.validateConfirmToken(confirmToken)
+
+    // Шукаємо токен в базі даних
     const tokenFromDB = await tokenService.findToken(confirmToken, CONFIRM_TOKEN)
 
+    // Якщо токен невалідний або відсутній в базі даних, кидаємо помилку
     if (!tokenData || !tokenFromDB) {
       throw createError(400, BAD_CONFIRM_TOKEN)
     }
 
+    // Оновлюємо поле isEmailConfirmed на true для користувача
     await privateUpdateUser(tokenData.id, { isEmailConfirmed: true })
+
+    // Видаляємо токен підтвердження з бази даних
     await tokenService.removeConfirmToken(confirmToken)
   }
 }
