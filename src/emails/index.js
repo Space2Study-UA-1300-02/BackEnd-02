@@ -8,7 +8,7 @@ const templateList = {
     },
     ua: {
       subject: 'Будь ласка, підтвердіть свою електронну адресу',
-      template: '../ua/confirm-email'
+      template: '../src/emails/ua/confirm-email'
     }
   },
   [emailSubject.RESET_PASSWORD]: {
