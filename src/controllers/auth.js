@@ -132,6 +132,12 @@ const googleAuth = async (req, res) => {
 }
 
 
+const confirmEmail = async (req, res) => {
+  const { token } = req.params
+  await authService.confirmEmail(token)
+  res.status(204).end()
+}
+
 module.exports = {
   signup,
   login,
@@ -139,6 +145,7 @@ module.exports = {
   refreshAccessToken,
   sendResetPasswordEmail,
   updatePassword,
-  googleAuth
-
+  googleAuth,
+  confirmEmail
 }
+

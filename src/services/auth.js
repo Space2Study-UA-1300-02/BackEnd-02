@@ -9,6 +9,7 @@ const {
   INVALID_GOOGLE_TOKEN,
   BAD_RESET_TOKEN,
   BAD_REFRESH_TOKEN,
+  BAD_CONFIRM_TOKEN,
   USER_NOT_FOUND
 } = require('~/consts/errors')
 const emailSubject = require('~/consts/emailSubject')
@@ -148,12 +149,6 @@ const authService = {
       const { email, email_verified, given_name: firstName, family_name: lastName } = payload
       console.log('payload:', email, email_verified, firstName, lastName)
 
-      if (!email_verified) {
-        throw createError(401, {
-          message: 'Please confirm your email to login.',
-          code: 'EMAIL_NOT_CONFIRMED'
-        })
-      }
 
       let user = await getUserByEmail(email)
 
@@ -200,15 +195,22 @@ const authService = {
         throw createError(401, INVALID_GOOGLE_TOKEN)
       }
 
-      if (error.message === 'Please confirm your email to login.') {
-        throw createError(401, {
-          message: 'Please confirm your email to login.',
-          code: 'EMAIL_NOT_CONFIRMED'
-        })
-      }
-
       throw createError(500, { message: error.message || 'Internal server error', code: 'INTERNAL_SERVER_ERROR' })
     }
+  },
+
+  confirmEmail: async (confirmToken) => {
+    const tokenData = tokenService.validateConfirmToken(confirmToken)
+
+    const tokenFromDB = await tokenService.findToken(confirmToken, CONFIRM_TOKEN)
+
+    if (!tokenData || !tokenFromDB) {
+      throw createError(400, BAD_CONFIRM_TOKEN)
+    }
+
+    await privateUpdateUser(tokenData.id, { isEmailConfirmed: true })
+
+    await tokenService.removeConfirmToken(confirmToken)
   }
 }
 
