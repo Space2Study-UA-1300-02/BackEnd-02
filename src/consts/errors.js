@@ -44,6 +44,10 @@ const errors = {
     code: 'EMAIL_NOT_CONFIRMED',
     message: 'Please confirm your email to login.'
   },
+  BAD_CONFIRM_TOKEN: {
+    code: 'BAD_CONFIRM_TOKEN',
+    message: 'The confirmation token is either invalid or has expired.'
+  },
   NOT_FOUND: {
     code: 'NOT_FOUND',
     message: 'The requested URL was not found.'
@@ -78,6 +82,10 @@ const errors = {
   INVALID_TOKEN_NAME: {
     code: 'INVALID_TOKEN_NAME',
     message: 'The token name you used is invalid.'
+  },
+  INVALID_GOOGLE_TOKEN: {
+    code: 'INVALID_GOOGLE_TOKEN',
+    message: 'The Google token name you used is invalid.'
   },
   INVALID_ID: {
     code: 'INVALID_ID',

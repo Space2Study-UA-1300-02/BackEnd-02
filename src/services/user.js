@@ -62,6 +62,40 @@ const userService = {
     })
   },
 
+  createGoogleUser: async ({ role, firstName, lastName, email, appLanguage }) => {
+    const validRoles = ['student', 'tutor', 'admin', 'superadmin']
+
+    if (!validRoles.includes(role)) {
+      throw createError(422, {
+        message: 'The role you provided is invalid.',
+        code: 'INVALID_ROLE'
+      })
+    }
+
+    const duplicateUser = await userService.getUserByEmail(email)
+    if (duplicateUser) {
+      throw createError(409, ALREADY_REGISTERED)
+    }
+
+    return await User.create({
+      role: role,
+      firstName,
+      lastName,
+      email,
+      lastLoginAs: role,
+      password: undefined,
+      appLanguage,
+      isEmailConfirmed: true,
+      isGoogleAuth: true,
+      status: {
+        student: 'blocked',
+        tutor: 'blocked',
+        admin: 'blocked',
+        [role]: 'active'
+      }
+    })
+  },
+
   privateUpdateUser: async (id, param) => {
     const user = await User.findByIdAndUpdate(id, param, { new: true }).exec()
 
