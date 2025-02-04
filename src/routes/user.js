@@ -25,4 +25,8 @@ router.use(restrictTo(ADMIN))
 router.patch('/:id/change-status', isEntityValid({ params }), asyncWrapper(userController.updateStatus))
 router.delete('/:id', isEntityValid({ params }), asyncWrapper(userController.deleteUser))
 
+router.get('/users', (req, res) => {
+  res.json([{ id: 1, name: 'John Doe' }])
+})
+
 module.exports = router
