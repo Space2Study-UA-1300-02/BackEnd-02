@@ -110,6 +110,7 @@ router.post(
 
 router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(authController.login))
 
+
 /**
  * @swagger
  * /logout:
@@ -130,6 +131,13 @@ router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(
  *                   type: string
  *                   example: "Invalid or missing refresh token."
  */
+
+
+router.post(
+  '/google-auth',
+  langMiddleware,
+  asyncWrapper(authController.googleAuth)
+)
 
 router.post('/logout', asyncWrapper(authController.logout))
 
@@ -202,6 +210,10 @@ router.patch(
   validationMiddleware(resetPasswordValidationSchema),
   langMiddleware,
   asyncWrapper(authController.updatePassword)
+)
+router.get(
+  '/confirm-email/:token',
+  asyncWrapper(authController.confirmEmail)
 )
 
 module.exports = router

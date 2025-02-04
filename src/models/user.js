@@ -41,9 +41,13 @@ const userSchema = new Schema(
       unique: true,
       lowercase: true
     },
+    isGoogleAuth: {
+      type: Boolean,
+      default: false
+    },
     password: {
       type: String,
-      required: [true, FIELD_CANNOT_BE_EMPTY('password')],
+      required: function () { return !this.isGoogleAuth },
       minLength: [8, FIELD_CANNOT_BE_SHORTER('password', 8)],
       select: false
     },
@@ -92,8 +96,7 @@ const userSchema = new Schema(
     },
     isEmailConfirmed: {
       type: Boolean,
-      default: false,
-      select: false
+      default: false
     },
     isFirstLogin: {
       type: Boolean,

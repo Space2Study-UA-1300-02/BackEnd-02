@@ -7,12 +7,33 @@ const errors = require('~/consts/errors')
 const tokenService = require('~/services/token')
 const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
+const { OAuth2Client } = require('google-auth-library')
+const { getUserByEmail, privateUpdateUser } = require('~/services/user')
+
+jest.mock('google-auth-library')
 
 describe('Auth controller', () => {
   let app, server, signupResponse
 
+  const mockGooglePayload = {
+    email: 'google.test@gmail.com',
+    email_verified: true,
+    given_name: 'John',
+    family_name: 'Doe'
+  }
+
+  const mockValidGoogleToken = {
+    credential: 'valid.google.token'
+  }
+
   beforeAll(async () => {
-    ; ({ app, server } = await serverInit())
+    ;({ app, server } = await serverInit())
+
+    OAuth2Client.mockImplementation(() => ({
+      verifyIdToken: jest.fn().mockResolvedValue({
+        getPayload: () => mockGooglePayload
+      })
+    }))
   })
 
   beforeEach(async () => {
@@ -21,10 +42,12 @@ describe('Auth controller', () => {
 
   afterEach(async () => {
     await serverCleanup()
+    jest.clearAllMocks()
   })
 
   afterAll(async () => {
     await stopServer(server)
+    jest.resetAllMocks()
   })
 
   const user = {
@@ -34,6 +57,185 @@ describe('Auth controller', () => {
     email: 'test@gmail.com',
     password: 'testpass_135'
   }
+
+  describe('Google Auth endpoint', () => {
+    it('should preserve user data on subsequent logins', async () => {
+      const firstResponse = await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      const user = await getUserByEmail(mockGooglePayload.email)
+
+      if (!user) {
+        throw new Error('User was not created on first login')
+      }
+
+      await privateUpdateUser(user._id, {
+        professionalSummary: 'Test summary'
+      })
+
+      const response = await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      expect(response.status).toBe(200)
+
+      const updatedUser = await getUserByEmail(mockGooglePayload.email)
+      expect(updatedUser.professionalSummary).toBe('Test summary')
+    })
+
+    it('should successfully authenticate with Google credentials', async () => {
+      const response = await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      expect(response.status).toBe(200)
+      expect(response.body).toHaveProperty('accessToken')
+      expect(response.headers['set-cookie'].some((cookie) => cookie.includes('refreshToken'))).toBe(true)
+    })
+
+    it('should create new user on first Google login', async () => {
+      const response = await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      expect(response.status).toBe(200)
+
+      const user = await getUserByEmail(mockGooglePayload.email)
+
+      expect(user).toBeTruthy()
+      expect(user.firstName).toBe(mockGooglePayload.given_name)
+      expect(user.lastName).toBe(mockGooglePayload.family_name)
+      expect(user.isEmailConfirmed).toBe(true)
+      expect(user.role).toContain('student')
+    })
+
+    it('should update existing user on subsequent Google login', async () => {
+      await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'student'
+      })
+
+      const updatedPayload = {
+        ...mockGooglePayload,
+        given_name: 'Jane'
+      }
+
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockResolvedValue({
+          getPayload: () => updatedPayload
+        })
+      }))
+
+      await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken
+      })
+
+      const user = await getUserByEmail(mockGooglePayload.email)
+      expect(user.firstName).toBe('Jane')
+    })
+
+    it('should fail with invalid Google token', async () => {
+      OAuth2Client.mockImplementation(() => ({
+        verifyIdToken: jest.fn().mockRejectedValue(new Error('Invalid token'))
+      }))
+
+      const response = await app.post('/auth/google-auth').send({
+        token: { credential: 'invalid.token' },
+        role: 'student'
+      })
+
+      expect(response.status).toBe(401)
+      expect(response.body).toEqual({
+        error: 'INVALID_GOOGLE_TOKEN',
+        message: 'The Google token name you used is invalid.'
+      })
+    })
+
+
+    it('should fail without token', async () => {
+      const response = await app.post('/auth/google-auth').send({})
+      expect(response.status).toBe(422)
+    })
+
+    it('should fail with invalid role', async () => {
+      const response = await app.post('/auth/google-auth').send({
+        token: mockValidGoogleToken,
+        role: 'invalid_role'
+      })
+
+      expect(response.status).toBe(422)
+    })
+  })
+
+  describe('Email confirmation endpoint', () => {
+    let confirmToken
+    let userId
+
+    beforeEach(async () => {
+      userId = signupResponse.body.userId
+
+      const userBeforeToken = await getUserByEmail(user.email)
+      console.log('User before token generation:', userBeforeToken)
+
+      confirmToken = tokenService.generateConfirmToken({
+        id: userId,
+        role: user.role
+      })
+      await tokenService.saveToken(userId, confirmToken, 'confirmToken')
+
+      console.log('Generated token:', confirmToken)
+    })
+
+    it('should successfully confirm email', async () => {
+      const userBefore = await getUserByEmail(user.email)
+      console.log('User before confirmation:', userBefore)
+
+      const response = await app
+        .get(`/auth/confirm-email/${confirmToken}`)
+
+      console.log('Response status:', response.status)
+      console.log('Response body:', response.body)
+
+      expect(response.status).toBe(204)
+
+      const updatedUser = await getUserByEmail(user.email)
+      console.log('Updated user:', updatedUser)
+
+      expect(updatedUser.isEmailConfirmed).toBe(true)
+    })
+
+    it('should fail with invalid token', async () => {
+      const response = await app
+        .get('/auth/confirm-email/invalid-token')
+
+      expectError(400, errors.BAD_CONFIRM_TOKEN, response)
+    })
+
+    it('should fail if token not found in DB', async () => {
+      await Token.deleteOne({ confirmToken })
+
+      const response = await app
+        .get(`/auth/confirm-email/${confirmToken}`)
+
+      expectError(400, errors.BAD_CONFIRM_TOKEN, response)
+    })
+
+    it('should prevent login with unconfirmed email', async () => {
+      const loginResponse = await app
+        .post('/auth/login')
+        .send({
+          email: user.email,
+          password: user.password
+        })
+
+      expectError(401, errors.EMAIL_NOT_CONFIRMED, loginResponse)
+    })
+  })
 
   describe('Signup endpoint', () => {
     it('should throw validation errors for the firstName field', async () => {

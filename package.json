@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest --maxWorkers=1",
     "start": "nodemon src/app.js --legacy-watch",
+    "create-secret": "node ./src/services/generateSecrets.js",
     "lint": "eslint . --fix",
     "prepare": "husky install",
     "pre-commit": "lint-staged"
@@ -33,6 +34,7 @@
     "dotenv": "^10.0.0",
     "email-templates": "^10.0.0",
     "express": "^4.17.1",
+    "google-auth-library": "^9.15.1",
     "googleapis": "^105.0.0",
     "jsonwebtoken": "^8.5.1",
     "module-alias": "^2.2.2",
@@ -42,7 +44,8 @@
     "nodemailer": "^6.7.7",
     "pug": "^3.0.2",
     "winston": "^3.8.0",
-    "winston-mongodb": "^5.0.7"
+    "winston-mongodb": "^5.0.7",
+    "zod": "^3.24.1"
   },
   "lint-staged": {
     "*.{js}": [
