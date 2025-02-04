@@ -200,6 +200,7 @@ const authService = {
   },
 
   confirmEmail: async (confirmToken) => {
+    console.log('confirm done')
     const tokenData = tokenService.validateConfirmToken(confirmToken)
 
     const tokenFromDB = await tokenService.findToken(confirmToken, CONFIRM_TOKEN)
@@ -207,6 +208,8 @@ const authService = {
     if (!tokenData || !tokenFromDB) {
       throw createError(400, BAD_CONFIRM_TOKEN)
     }
+
+
 
     await privateUpdateUser(tokenData.id, { isEmailConfirmed: true })
 
