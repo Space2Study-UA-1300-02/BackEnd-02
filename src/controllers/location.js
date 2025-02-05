@@ -1,4 +1,4 @@
-const { getCountries, getCitiesByCountry } = require('../services/location');
+const { getCountries, getCitiesByCountry } = require('../services/location')
 
 const getCountriesList = async (req, res) => {
   const { search = '' } = req.query
