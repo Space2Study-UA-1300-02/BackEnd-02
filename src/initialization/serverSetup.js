@@ -6,15 +6,14 @@ const {
   config: { SERVER_PORT }
 } = require('~/configs/config')
 const scheduledCronJobs = require('~/cron-jobs/scheduledCronJobs')
-const SWAGGER_URL = 'http://localhost:8081/api-docs'
 
 const serverSetup = async (app) => {
   await databaseInitialization()
   await checkUserExistence()
   initialization(app)
   return app.listen(SERVER_PORT, () => {
-    logger.info(`Server is running on port ${SERVER_PORT}`)
-    logger.info(`Swagger UI: ${SWAGGER_URL}`)
+    logger.info(`Server is running on http://localhost:${SERVER_PORT}/`)
+    logger.info(`Swagger UI: http://localhost:${SERVER_PORT}/api-docs`)
     if (process.env.NODE_ENV !== 'test') {
       scheduledCronJobs()
     }
