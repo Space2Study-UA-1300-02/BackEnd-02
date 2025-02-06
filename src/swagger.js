@@ -42,6 +42,40 @@ const options = {
             confirmPassword: { type: 'string', example: 'newpassword123' }
           },
           required: ['password', 'confirmPassword']
+        },
+        ConfirmEmail: {
+          type: 'object',
+          properties: {
+            token: {
+              type: 'string',
+              description: 'Token for email confirmation',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+            }
+          },
+          required: ['token']
+        },
+        GoogleAuth: {
+          type: 'object',
+          properties: {
+            token: {
+              type: 'object',
+              required: ['credential'],
+              properties: {
+                credential: {
+                  type: 'string',
+                  description: 'Google ID token (JWT)',
+                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                }
+              }
+            },
+            role: {
+              type: 'string',
+              description: 'User role',
+              enum: ['student', 'tutor', 'admin', 'superadmin'],
+              example: 'student'
+            }
+          },
+          required: ['token', 'role']
         }
       }
     },
