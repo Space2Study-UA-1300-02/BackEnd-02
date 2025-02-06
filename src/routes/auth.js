@@ -133,13 +133,6 @@ router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(
  *                   example: "Invalid or missing refresh token."
  */
 
-
-router.post(
-  '/google-auth',
-  langMiddleware,
-  asyncWrapper(authController.googleAuth)
-)
-
 router.post('/logout', asyncWrapper(authController.logout))
 
 /**
@@ -218,20 +211,20 @@ router.patch(
  * @swagger
  * /confirm-email/{token}:
  *   get:
- *     summary: Підтвердження електронної пошти користувача
- *     tags: [Auth]  // Групуємо цей ендпоінт у категорію "Auth"
+ *     summary: User email confirmation
+ *     tags: [Auth]
  *     parameters:
- *       - in: path  // Токен передається у параметрі шляху (URL)
+ *       - in: path
  *         name: token
- *         required: true  // Параметр обов'язковий
+ *         required: true
  *         schema:
- *           type: string  // Токен має бути рядком
- *         description: Токен підтвердження електронної пошти
+ *           type: string
+ *         description: Email confirmation token
  *     responses:
  *       204:
- *         description: Електронну пошту успішно підтверджено
+ *         description: Email successfully confirmed
  *       400:
- *         description: Невірний або прострочений токен підтвердження
+ *         description: Invalid or expired confirmation token
  *         content:
  *           application/json:
  *             schema:
@@ -242,24 +235,23 @@ router.patch(
  *                   example: BAD_CONFIRM_TOKEN
  *                 message:
  *                   type: string
- *                   example: Токен підтвердження недійсний або закінчився.
+ *                   example: The confirmation token is invalid or has expired.
  */
 
-// Оголошуємо маршрут для GET-запиту, який підтверджує email за токеном
 router.get(
-  '/confirm-email/:token',  // Маршрут містить змінний параметр :token
-  asyncWrapper(authController.confirmEmail)  // Обробник запиту викликає функцію confirmEmail
+  '/confirm-email/:token', 
+  asyncWrapper(authController.confirmEmail)  
 )
 
 /**
  * @swagger
  * /auth/google-auth:
  *   post:
- *     summary: Аутентифікація через Google OAuth
- *     description: Дозволяє користувачам увійти або зареєструватися через Google
- *     tags: [Auth]  // Групуємо цей ендпоінт у категорію "Auth"
+ *     summary: Authentication via Google OAuth
+ *     description: Allows users to log in or register via Google
+ *     tags: [Auth]
  *     requestBody:
- *       required: true  // Тіло запиту є обов'язковим
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
@@ -270,11 +262,11 @@ router.get(
  *             properties:
  *               token:
  *                 type: string
- *                 description: Google ID токен (JWT)
+ *                 description: Google ID token (JWT)
  *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
  *               role:
  *                 type: string
- *                 description: Роль користувача
+ *                 description: User role
  *                 enum:
  *                   - student
  *                   - tutor
@@ -283,7 +275,7 @@ router.get(
  *                 example: student
  *     responses:
  *       200:
- *         description: Успішна аутентифікація через Google
+ *         description: Successful authentication via Google
  *         content:
  *           application/json:
  *             schema:
@@ -291,14 +283,14 @@ router.get(
  *               properties:
  *                 accessToken:
  *                   type: string
- *                   description: JWT-токен доступу для користувача
+ *                   description: JWT access token for the user
  *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
  *                 isFirstLogin:
  *                   type: boolean
- *                   description: Чи це перший вхід користувача
+ *                   description: Whether this is the user's first login
  *                   example: true
  *       401:
- *         description: Помилка аутентифікації
+ *         description: Authentication error
  *         content:
  *           application/json:
  *             schema:
@@ -310,16 +302,16 @@ router.get(
  *                       example: "INVALID_GOOGLE_TOKEN"
  *                     message:
  *                       type: string
- *                       example: "Використаний Google-токен недійсний."
+ *                       example: "The provided Google token is invalid."
  *                 - properties:
  *                     error:
  *                       type: string
  *                       example: "EMAIL_NOT_CONFIRMED"
  *                     message:
  *                       type: string
- *                       example: "Будь ласка, підтвердіть свою електронну пошту для входу."
+ *                       example: "Please confirm your email before logging in."
  *       422:
- *         description: Помилка валідації
+ *         description: Validation error
  *         content:
  *           application/json:
  *             schema:
@@ -327,19 +319,20 @@ router.get(
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Невірна роль користувача."
+ *                   example: "Invalid user role."
  *                 error:
  *                   type: string
  *                   example: "INVALID_ROLE"
  *     security:
- *       - GoogleAuth: []  // Використання Google OAuth для безпеки
+ *       - GoogleAuth: []
  */
 
-// Оголошуємо маршрут для POST-запиту, який обробляє Google-аутентифікацію
+
+
 router.post(
-  '/google-auth',  // Клієнт надсилає запит на цей URL
-  langMiddleware,  // Middleware, що обробляє мову запиту
-  asyncWrapper(authController.googleAuth)  // Обробник запиту викликає функцію googleAuth
+  '/google-auth',
+  langMiddleware,
+  asyncWrapper(authController.googleAuth)
 )
 
 module.exports = router
