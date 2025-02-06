@@ -9,6 +9,7 @@ const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
 const { getUserByEmail, privateUpdateUser } = require('~/services/user')
+const bcrypt = require('bcrypt')
 
 jest.mock('google-auth-library')
 
@@ -238,6 +239,22 @@ describe('Auth controller', () => {
   })
 
   describe('Signup endpoint', () => {
+    it('should hash password before saving to database', async () => {
+      const createdUser = await getUserByEmail(user.email);
+
+      expect(createdUser).toBeTruthy()
+      expect(createdUser.password).toBeDefined()
+      expect(createdUser.password).not.toBe(user.password)
+
+      const isPasswordValid = await bcrypt.compare(user.password, createdUser.password)
+      expect(isPasswordValid).toBe(true)
+    })
+
+    it('should not store password in plain text', async () => {
+      const createdUser = await getUserByEmail(user.email)
+      expect(createdUser.password).not.toBe(user.password)
+    })
+
     it('should throw validation errors for the firstName field', async () => {
       const responseForFormat = await app.post('/auth/signup').send({ ...user, firstName: '12345' })
       const responseForNull = await app.post('/auth/signup').send({ ...user, firstName: null })
@@ -316,4 +333,51 @@ describe('Auth controller', () => {
       expectError(400, errors.BAD_RESET_TOKEN, response)
     })
   })
+
+  describe('Login endpoint', () => {
+    it('should authenticate user with correct credentials', async () => {
+      const loginResponse = await app.post('/auth/login').send({
+        email: user.email,
+        password: user.password
+      })
+
+      expect(loginResponse.status).toBe(200)
+      expect(loginResponse.body).toHaveProperty('accessToken')
+    })
+
+    it('should not authenticate user with incorrect password', async () => {
+      const loginResponse = await app.post('/auth/login').send({
+        email: user.email,
+        password: 'wrongpassword'
+      });
+
+      expectError(401, errors.INVALID_CREDENTIALS, loginResponse)
+    })
+
+    it('should return error for non-existent user', async () => {
+      const loginResponse = await app.post('/auth/login').send({
+        email: 'nonexistent@gmail.com',
+        password: 'testpass_135'
+      })
+
+      expectError(404, errors.USER_NOT_FOUND, loginResponse)
+    })
+  })
+
+  describe('Password comparison', () => {
+    it('should return true for correct password', async () => {
+      const createdUser = await getUserByEmail(user.email)
+      const isMatch = await createdUser.comparePassword(user.password)
+
+      expect(isMatch).toBe(true)
+    })
+
+    it('should return false for incorrect password', async () => {
+      const createdUser = await getUserByEmail(user.email)
+      const isMatch = await createdUser.comparePassword('wrongpassword')
+
+      expect(isMatch).toBe(false)
+    })
+  })
+
 })

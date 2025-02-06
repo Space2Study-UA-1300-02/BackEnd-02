@@ -1,4 +1,5 @@
 const { Schema, model } = require('mongoose')
+const bcrypt = require('bcrypt')
 const {
   enums: { APP_LANG_ENUM, SPOKEN_LANG_ENUM, STATUS_ENUM, ROLE_ENUM, LOGIN_ROLE_ENUM }
 } = require('~/consts/validation')
@@ -216,5 +217,24 @@ const userSchema = new Schema(
     id: false
   }
 )
+
+// Middleware для хеширования пароля перед сохранением
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next(); // Если пароль не изменялся, пропускаем
+
+  try {
+    const salt = await bcrypt.genSalt(10); // Генерируем соль (10 раундов)
+    this.password = await bcrypt.hash(this.password, salt); // Хешируем пароль
+    next();
+  } catch (error) {
+    next(error); // Передаем ошибку в Mongoose
+  }
+});
+
+// Метод для проверки пароля
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password); // Сравниваем хеши
+};
+
 
 module.exports = model(USER, userSchema)
