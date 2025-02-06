@@ -76,12 +76,52 @@ const options = {
             }
           },
           required: ['token', 'role']
+        },
+        CountriesResponse: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'boolean',
+              example: false
+            },
+            data: {
+              type: 'array',
+              items: {
+                type: 'string'
+              },
+              example: ['Afghanistan', 'Albania', 'Algeria']
+            },
+            total: {
+              type: 'number',
+              example: 3
+            }
+          }
+        },
+        CitiesResponse: {
+          type: 'object',
+          properties: {
+            error: {
+              type: 'boolean',
+              example: false
+            },
+            msg: {
+              type: 'string',
+              example: 'Cities retrieved successfully'
+            },
+            data: {
+              type: 'array',
+              items: {
+                type: 'string'
+              },
+              example: ['Elbasan', 'Petran', 'Pogradec', 'Shkoder', 'Tirana']
+            }
+          }
         }
       }
     },
     servers: [
       {
-        url: 'http://localhost:8081',
+        url: 'http://localhost:8080',
         description: 'Local server'
       }
     ]

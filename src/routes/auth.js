@@ -133,13 +133,6 @@ router.post('/login', validationMiddleware(loginValidationSchema), asyncWrapper(
  *                   example: "Invalid or missing refresh token."
  */
 
-
-router.post(
-  '/google-auth',
-  langMiddleware,
-  asyncWrapper(authController.googleAuth)
-)
-
 router.post('/logout', asyncWrapper(authController.logout))
 
 /**
@@ -246,8 +239,8 @@ router.patch(
  */
 
 router.get(
-  '/confirm-email/:token',
-  asyncWrapper(authController.confirmEmail)
+  '/confirm-email/:token', 
+  asyncWrapper(authController.confirmEmail)  
 )
 
 /**
