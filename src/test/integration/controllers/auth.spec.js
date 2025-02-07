@@ -9,6 +9,7 @@ const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
 const { getUserByEmail, privateUpdateUser } = require('~/services/user')
+const User = require('~/models/user');
 
 jest.mock('google-auth-library')
 
@@ -35,7 +36,7 @@ describe('Auth controller', () => {
   }
 
   beforeAll(async () => {
-    ;({ app, server } = await serverInit())
+    ({ app, server } = await serverInit())
 
     OAuth2Client.mockImplementation(() => ({
       verifyIdToken: jest.fn().mockResolvedValue({
@@ -58,15 +59,7 @@ describe('Auth controller', () => {
     jest.resetAllMocks()
   })
 
-  const { serverInit, serverCleanup, stopServer } = require('~/test/setup')
-  const { getUserByEmail } = require('~/services/user')
-  const bcrypt = require('bcrypt')
-  const errors = require('~/consts/errors')
-  const { expectError } = require('~/test/helpers')
-
   describe('Password Encryption', () => {
-    let app, server
-
     const testUser = {
       role: 'student',
       firstName: 'test',
@@ -75,23 +68,11 @@ describe('Auth controller', () => {
       password: 'testpass_135'
     }
 
-    beforeAll(async () => {
-      ;({ app, server } = await serverInit())
-    })
-
-    afterEach(async () => {
-      await serverCleanup()
-    })
-
-    afterAll(async () => {
-      await stopServer(server)
-    })
-
     describe('Password handling', () => {
       it('should hash password during signup', async () => {
         // Регистрируем пользователя
         const signupResponse = await app.post('/auth/signup').send(testUser)
-        expect(signupResponse.status).toBe(200)
+        expect(signupResponse.status).toBe(201)
 
         // Получаем пользователя из базы
         const user = await getUserByEmail(testUser.email)
@@ -102,21 +83,31 @@ describe('Auth controller', () => {
       })
 
       it('should successfully login with correct password', async () => {
-        // Сначала регистрируем
+        // 📌 1. Регистрируем пользователя
         await app.post('/auth/signup').send(testUser)
 
-        // Подтверждаем email для возможности логина
+        // 📌 2. Получаем пользователя
         const user = await getUserByEmail(testUser.email)
-        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
+        console.log('🟢 User after signup:', user)
 
-        // Пробуем залогиниться
-        const loginResponse = await app.post('/auth/login').send({
+        // 📌 3. Подтверждаем email напрямую в БД (этот способ уже используется в тестах)
+        await User.updateOne({ _id: user._id }, { isEmailConfirmed: true })
+
+        // 📌 4. Проверяем, обновился ли email
+        const updatedUser = await getUserByEmail(testUser.email)
+        console.log('🟢 Updated user:', updatedUser)
+        if (!updatedUser.isEmailConfirmed) throw new Error('❌ Email всё ещё не подтверждён!')
+
+        // 📌 5. Пробуем залогиниться снова
+        const loginAfterConfirm = await app.post('/auth/login').send({
           email: testUser.email,
           password: testUser.password
         })
+        console.log('🔴 Login after confirm:', loginAfterConfirm.status, loginAfterConfirm.body)
+        if (loginAfterConfirm.status !== 200) throw new Error('❌ Логин не удался после подтверждения email!')
 
-        expect(loginResponse.status).toBe(200)
-        expect(loginResponse.body).toHaveProperty('accessToken')
+        expect(loginAfterConfirm.status).toBe(200)
+        expect(loginAfterConfirm.body).toHaveProperty('accessToken')
       })
 
       it('should fail login with incorrect password', async () => {
@@ -125,7 +116,7 @@ describe('Auth controller', () => {
 
         // Подтверждаем email
         const user = await getUserByEmail(testUser.email)
-        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
+        await app.patch(`/users/${user._id}`).send({ isEmailConfirmed: true })
 
         // Пробуем залогиниться с неверным паролем
         const loginResponse = await app.post('/auth/login').send({
@@ -137,32 +128,57 @@ describe('Auth controller', () => {
       })
 
       it('should hash new password when updating', async () => {
-        // Регистрируем пользователя
+        // 📌 1. Регистрируем пользователя
         await app.post('/auth/signup').send(testUser)
 
-        const newPassword = 'new_password_246'
+        // 📌 2. Получаем пользователя
         const user = await getUserByEmail(testUser.email)
+        console.log('🟢 User after signup:', user)
 
-        // Обновляем пароль
-        await app.patch(`/auth/users/${user._id}`).send({ password: newPassword })
+        // ❗ Подтверждаем email напрямую в БД (иначе логин не сработает)
+        await User.updateOne({ _id: user._id }, { isEmailConfirmed: true })
 
-        // Получаем обновленного пользователя
-        const updatedUser = await getUserByEmail(testUser.email)
-
-        // Проверяем что новый пароль захеширован
-        expect(updatedUser.password).not.toBe(newPassword)
-        expect(updatedUser.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/)
-
-        // Проверяем что можем залогиниться с новым паролем
-        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
-
+        // 📌 3. Логинимся, чтобы получить токен
         const loginResponse = await app.post('/auth/login').send({
+          email: testUser.email,
+          password: testUser.password
+        })
+        console.log('🔵 Login response:', loginResponse.status, loginResponse.body)
+        expect(loginResponse.status).toBe(200)
+
+        // 📌 4. Извлекаем `accessToken`
+        const token = loginResponse.body.accessToken
+        console.log('🟡 Extracted token:', token)
+        if (!token) throw new Error('❌ Токен не получен!')
+
+        // 📌 5. Обновляем пароль с токеном
+        const newPassword = 'new_password_246'
+        const updatePasswordResponse = await app
+          .patch(`/users/${user._id}`)
+          .set('Authorization', `Bearer ${token}`) // 🔥 Теперь передаём токен
+          .send({ password: newPassword })
+
+        console.log('🟠 Password update response:', updatePasswordResponse.status, updatePasswordResponse.body)
+        expect(updatePasswordResponse.status).toBe(200)
+
+        // 📌 6. Получаем обновлённого пользователя
+        const updatedUser = await getUserByEmail(testUser.email)
+        console.log('🟢 Updated user:', updatedUser)
+
+        // 📌 7. Проверяем, что новый пароль захеширован
+        expect(updatedUser.password).not.toBe(newPassword)
+        expect(updatedUser.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/) // bcrypt хеш
+
+        // 📌 8. Пробуем залогиниться с новым паролем
+        const loginAfterPasswordChange = await app.post('/auth/login').send({
           email: testUser.email,
           password: newPassword
         })
 
-        expect(loginResponse.status).toBe(200)
+        console.log('🔴 Login after password change:', loginAfterPasswordChange.status, loginAfterPasswordChange.body)
+        expect(loginAfterPasswordChange.status).toBe(200)
       })
+
 
       it('should preserve password hash when updating other fields', async () => {
         // Регистрируем пользователя
@@ -172,7 +188,7 @@ describe('Auth controller', () => {
         const originalHash = user.password
 
         // Обновляем другие поля
-        await app.patch(`/auth/users/${user._id}`).send({
+        await app.patch(`/users/${user._id}`).send({
           firstName: 'Updated',
           lastName: 'Name'
         })
@@ -183,6 +199,7 @@ describe('Auth controller', () => {
       })
     })
   })
+
 
   describe('Google Auth endpoint', () => {
     it('should preserve user data on subsequent logins', async () => {
