@@ -9,36 +9,42 @@ const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
 const { getUserByEmail, privateUpdateUser } = require('~/services/user')
-const bcrypt = require('bcrypt')
-const User = require('~/models/user') // Подключаем модель
 
-// Сброс модулей и очистка моков перед тестами
-jest.resetModules()
-jest.clearAllMocks()
-
-jest.mock('google-auth-library', () => ({
-  OAuth2Client: jest.fn().mockImplementation(() => ({
-    verifyIdToken: jest.fn().mockResolvedValue({
-      getPayload: () => ({
-        email: 'google.test@gmail.com',
-        email_verified: true,
-        given_name: 'John',
-        family_name: 'Doe'
-      })
-    })
-  }))
-}))
+jest.mock('google-auth-library')
 
 describe('Auth controller', () => {
   let app, server, signupResponse
 
+  const mockGooglePayload = {
+    email: 'google.test@gmail.com',
+    email_verified: true,
+    given_name: 'John',
+    family_name: 'Doe'
+  }
+
+  const mockValidGoogleToken = {
+    credential: 'valid.google.token'
+  }
+
+  const user = {
+    role: 'student',
+    firstName: 'test',
+    lastName: 'test',
+    email: 'test@gmail.com',
+    password: 'testpass_135'
+  }
+
   beforeAll(async () => {
     ;({ app, server } = await serverInit())
-    console.log('🔍 Google OAuth мок активирован') // Проверка, что мок работает
+
+    OAuth2Client.mockImplementation(() => ({
+      verifyIdToken: jest.fn().mockResolvedValue({
+        getPayload: () => mockGooglePayload
+      })
+    }))
   })
 
   beforeEach(async () => {
-    await serverCleanup() // Очистка базы перед каждым тестом
     signupResponse = await app.post('/auth/signup').send(user)
   })
 
@@ -52,13 +58,131 @@ describe('Auth controller', () => {
     jest.resetAllMocks()
   })
 
-  const user = {
-    role: 'student',
-    firstName: 'test',
-    lastName: 'test',
-    email: 'test@mail.com',
-    password: 'testpass_135'
-  }
+  const { serverInit, serverCleanup, stopServer } = require('~/test/setup')
+  const { getUserByEmail } = require('~/services/user')
+  const bcrypt = require('bcrypt')
+  const errors = require('~/consts/errors')
+  const { expectError } = require('~/test/helpers')
+
+  describe('Password Encryption', () => {
+    let app, server
+
+    const testUser = {
+      role: 'student',
+      firstName: 'test',
+      lastName: 'test',
+      email: 'test.password@gmail.com',
+      password: 'testpass_135'
+    }
+
+    beforeAll(async () => {
+      ;({ app, server } = await serverInit())
+    })
+
+    afterEach(async () => {
+      await serverCleanup()
+    })
+
+    afterAll(async () => {
+      await stopServer(server)
+    })
+
+    describe('Password handling', () => {
+      it('should hash password during signup', async () => {
+        // Регистрируем пользователя
+        const signupResponse = await app.post('/auth/signup').send(testUser)
+        expect(signupResponse.status).toBe(200)
+
+        // Получаем пользователя из базы
+        const user = await getUserByEmail(testUser.email)
+
+        // Проверяем что пароль захеширован
+        expect(user.password).not.toBe(testUser.password)
+        expect(user.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/) // формат bcrypt хеша
+      })
+
+      it('should successfully login with correct password', async () => {
+        // Сначала регистрируем
+        await app.post('/auth/signup').send(testUser)
+
+        // Подтверждаем email для возможности логина
+        const user = await getUserByEmail(testUser.email)
+        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
+
+        // Пробуем залогиниться
+        const loginResponse = await app.post('/auth/login').send({
+          email: testUser.email,
+          password: testUser.password
+        })
+
+        expect(loginResponse.status).toBe(200)
+        expect(loginResponse.body).toHaveProperty('accessToken')
+      })
+
+      it('should fail login with incorrect password', async () => {
+        // Регистрируем пользователя
+        await app.post('/auth/signup').send(testUser)
+
+        // Подтверждаем email
+        const user = await getUserByEmail(testUser.email)
+        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
+
+        // Пробуем залогиниться с неверным паролем
+        const loginResponse = await app.post('/auth/login').send({
+          email: testUser.email,
+          password: 'wrong_password_123'
+        })
+
+        expectError(401, errors.INCORRECT_CREDENTIALS, loginResponse)
+      })
+
+      it('should hash new password when updating', async () => {
+        // Регистрируем пользователя
+        await app.post('/auth/signup').send(testUser)
+
+        const newPassword = 'new_password_246'
+        const user = await getUserByEmail(testUser.email)
+
+        // Обновляем пароль
+        await app.patch(`/auth/users/${user._id}`).send({ password: newPassword })
+
+        // Получаем обновленного пользователя
+        const updatedUser = await getUserByEmail(testUser.email)
+
+        // Проверяем что новый пароль захеширован
+        expect(updatedUser.password).not.toBe(newPassword)
+        expect(updatedUser.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/)
+
+        // Проверяем что можем залогиниться с новым паролем
+        await app.patch(`/auth/users/${user._id}`).send({ isEmailConfirmed: true })
+
+        const loginResponse = await app.post('/auth/login').send({
+          email: testUser.email,
+          password: newPassword
+        })
+
+        expect(loginResponse.status).toBe(200)
+      })
+
+      it('should preserve password hash when updating other fields', async () => {
+        // Регистрируем пользователя
+        await app.post('/auth/signup').send(testUser)
+
+        const user = await getUserByEmail(testUser.email)
+        const originalHash = user.password
+
+        // Обновляем другие поля
+        await app.patch(`/auth/users/${user._id}`).send({
+          firstName: 'Updated',
+          lastName: 'Name'
+        })
+
+        // Проверяем что хеш пароля не изменился
+        const updatedUser = await getUserByEmail(testUser.email)
+        expect(updatedUser.password).toBe(originalHash)
+      })
+    })
+  })
 
   describe('Google Auth endpoint', () => {
     it('should preserve user data on subsequent logins', async () => {
@@ -240,22 +364,6 @@ describe('Auth controller', () => {
   })
 
   describe('Signup endpoint', () => {
-    it('should hash password before saving to database', async () => {
-      const createdUser = await getUserByEmail(user.email);
-
-      expect(createdUser).toBeTruthy()
-      expect(createdUser.password).toBeDefined()
-      expect(createdUser.password).not.toBe(user.password)
-
-      const isPasswordValid = await bcrypt.compare(user.password, createdUser.password)
-      expect(isPasswordValid).toBe(true)
-    })
-
-    it('should not store password in plain text', async () => {
-      const createdUser = await getUserByEmail(user.email)
-      expect(createdUser.password).not.toBe(user.password)
-    })
-
     it('should throw validation errors for the firstName field', async () => {
       const responseForFormat = await app.post('/auth/signup').send({ ...user, firstName: '12345' })
       const responseForNull = await app.post('/auth/signup').send({ ...user, firstName: null })
@@ -334,64 +442,4 @@ describe('Auth controller', () => {
       expectError(400, errors.BAD_RESET_TOKEN, response)
     })
   })
-
-  describe('Login endpoint', () => {
-    it('should authenticate user with correct credentials', async () => {
-      const createdUser = await getUserByEmail(user.email);
-      const userInstance = new User(createdUser); // Создаем экземпляр модели
-
-      const isMatch = await userInstance.comparePassword(user.password);
-      expect(isMatch).toBe(true); // Проверяем, совпадает ли пароль с хешем в базе
-
-      const loginResponse = await app.post('/auth/login').send({
-        email: user.email,
-        password: user.password
-      });
-
-      expect(loginResponse.status).toBe(200);
-      expect(loginResponse.body).toHaveProperty('accessToken');
-    });
-
-
-  it('should not authenticate user with incorrect password', async () => {
-      const loginResponse = await app.post('/auth/login').send({
-        email: user.email,
-        password: 'wrongpassword' // Отправляем неверный пароль
-      });
-
-      expectError(401, errors.INVALID_CREDENTIALS, loginResponse); // Ожидаем ошибку 401
-    });
-
-    it('should return error for non-existent user', async () => {
-      const loginResponse = await app.post('/auth/login').send({
-        email: 'nonexistent@gmail.com',
-        password: 'testpass_135'
-      });
-
-      expectError(404, errors.USER_NOT_FOUND, loginResponse); // Ожидаем ошибку 404, так как пользователя нет
-    });
-  });
-
-
-
-  describe('Password comparison', () => {
-    it('should return true for correct password', async () => {
-      const userData = await getUserByEmail(user.email);
-      const createdUser = new User(userData); // Преобразуем в модель
-
-      const isMatch = await createdUser.comparePassword(user.password);
-      expect(isMatch).toBe(true);
-    });
-
-    it('should return false for incorrect password', async () => {
-      const userData = await getUserByEmail(user.email);
-      const createdUser = new User(userData);
-
-      const isMatch = await createdUser.comparePassword('wrongpassword');
-      expect(isMatch).toBe(false);
-    });
-  });
-
-
-
 })
