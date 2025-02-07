@@ -1,4 +1,5 @@
 const { Schema, model } = require('mongoose')
+const bcrypt = require('bcrypt')
 const {
   enums: { APP_LANG_ENUM, SPOKEN_LANG_ENUM, STATUS_ENUM, ROLE_ENUM, LOGIN_ROLE_ENUM }
 } = require('~/consts/validation')
@@ -216,5 +217,29 @@ const userSchema = new Schema(
     id: false
   }
 )
+
+userSchema.pre('save', async function (next) {
+  // Проверяем, был ли изменен пароль
+  if (!this.isModified('password')) return next();
+
+  // Проверяем, что пароль существует
+  if (!this.password) return next();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    console.log('Хешированный пароль перед сохранением:', this.password);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+// Метод для проверки пароля
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password); // Сравниваем хеши
+};
+
 
 module.exports = model(USER, userSchema)

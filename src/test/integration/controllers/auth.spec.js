@@ -9,6 +9,7 @@ const Token = require('~/models/token')
 const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
 const { getUserByEmail, privateUpdateUser } = require('~/services/user')
+const User = require('~/models/user');
 
 jest.mock('google-auth-library')
 
@@ -26,8 +27,16 @@ describe('Auth controller', () => {
     credential: 'valid.google.token'
   }
 
+  const user = {
+    role: 'student',
+    firstName: 'test',
+    lastName: 'test',
+    email: 'test@gmail.com',
+    password: 'testpass_135'
+  }
+
   beforeAll(async () => {
-    ;({ app, server } = await serverInit())
+    ({ app, server } = await serverInit())
 
     OAuth2Client.mockImplementation(() => ({
       verifyIdToken: jest.fn().mockResolvedValue({
@@ -50,13 +59,78 @@ describe('Auth controller', () => {
     jest.resetAllMocks()
   })
 
-  const user = {
-    role: 'student',
-    firstName: 'test',
-    lastName: 'test',
-    email: 'test@gmail.com',
-    password: 'testpass_135'
-  }
+  describe('Password handling', () => {
+    const testUser = {
+      role: 'student',
+      firstName: 'test',
+      lastName: 'test',
+      email: 'test.password@gmail.com',
+      password: 'testpass_135'
+    }
+    it('should hash password during signup', async () => {
+      const signupResponse = await app.post('/auth/signup').send(testUser)
+      expect(signupResponse.status).toBe(201)
+
+      const user = await getUserByEmail(testUser.email)
+
+      expect(user.password).not.toBe(testUser.password)
+      expect(user.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/) // формат bcrypt хеша
+    })
+
+    it('should successfully login with correct password', async () => {
+      await app.post('/auth/signup').send(testUser)
+
+      const user = await getUserByEmail(testUser.email)
+      console.log('🟢 User after signup:', user)
+
+      await User.updateOne({ _id: user._id }, { isEmailConfirmed: true })
+
+      const updatedUser = await getUserByEmail(testUser.email)
+      console.log('🟢 Updated user:', updatedUser)
+      if (!updatedUser.isEmailConfirmed) throw new Error('❌ Email всё ещё не подтверждён!')
+
+      const loginAfterConfirm = await app.post('/auth/login').send({
+        email: testUser.email,
+        password: testUser.password
+      })
+      console.log('🔴 Login after confirm:', loginAfterConfirm.status, loginAfterConfirm.body)
+      if (loginAfterConfirm.status !== 200) throw new Error('❌ Логин не удался после подтверждения email!')
+
+      expect(loginAfterConfirm.status).toBe(200)
+      expect(loginAfterConfirm.body).toHaveProperty('accessToken')
+    })
+
+    it('should fail login with incorrect password', async () => {
+      await app.post('/auth/signup').send(testUser)
+
+      const user = await getUserByEmail(testUser.email)
+      await app.patch(`/users/${user._id}`).send({ isEmailConfirmed: true })
+
+      const loginResponse = await app.post('/auth/login').send({
+        email: testUser.email,
+        password: 'wrong_password_123'
+      })
+
+      expectError(401, errors.INCORRECT_CREDENTIALS, loginResponse)
+    })
+
+
+    it('should preserve password hash when updating other fields', async () => {
+      await app.post('/auth/signup').send(testUser)
+
+      const user = await getUserByEmail(testUser.email)
+      const originalHash = user.password
+
+      await app.patch(`/users/${user._id}`).send({
+        firstName: 'Updated',
+        lastName: 'Name'
+      })
+
+      const updatedUser = await getUserByEmail(testUser.email)
+      expect(updatedUser.password).toBe(originalHash)
+    })
+  })
+
 
   describe('Google Auth endpoint', () => {
     it('should preserve user data on subsequent logins', async () => {
