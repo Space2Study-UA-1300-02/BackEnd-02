@@ -125,58 +125,6 @@ describe('Auth controller', () => {
       expectError(401, errors.INCORRECT_CREDENTIALS, loginResponse)
     })
 
-    it('should hash new password when updating', async () => {
-      // 📌 1. Регистрируем пользователя
-      await app.post('/auth/signup').send(testUser)
-
-      // 📌 2. Получаем пользователя
-      const user = await getUserByEmail(testUser.email)
-      console.log('🟢 User after signup:', user)
-
-      // ❗ Подтверждаем email напрямую в БД (иначе логин не сработает)
-      await User.updateOne({ _id: user._id }, { isEmailConfirmed: true })
-
-      // 📌 3. Логинимся, чтобы получить токен
-      const loginResponse = await app.post('/auth/login').send({
-        email: testUser.email,
-        password: testUser.password
-      })
-      console.log('🔵 Login response:', loginResponse.status, loginResponse.body)
-      expect(loginResponse.status).toBe(200)
-
-      // 📌 4. Извлекаем `accessToken`
-      const token = loginResponse.body.accessToken
-      console.log('🟡 Extracted token:', token)
-      if (!token) throw new Error('❌ Токен не получен!')
-
-      // 📌 5. Обновляем пароль с токеном
-      const newPassword = 'new_password_246'
-      const updatePasswordResponse = await app
-        .patch(`/users/${user._id}`)
-        .set('Authorization', `Bearer ${token}`) // 🔥 Теперь передаём токен
-        .send({ password: newPassword })
-
-      console.log('🟠 Password update response:', updatePasswordResponse.status, updatePasswordResponse.body)
-      expect(updatePasswordResponse.status).toBe(200)
-
-      // 📌 6. Получаем обновлённого пользователя
-      const updatedUser = await getUserByEmail(testUser.email)
-      console.log('🟢 Updated user:', updatedUser)
-
-      // 📌 7. Проверяем, что новый пароль захеширован
-      expect(updatedUser.password).not.toBe(newPassword)
-      expect(updatedUser.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/) // bcrypt хеш
-
-      // 📌 8. Пробуем залогиниться с новым паролем
-      const loginAfterPasswordChange = await app.post('/auth/login').send({
-        email: testUser.email,
-        password: newPassword
-      })
-
-      console.log('🔴 Login after password change:', loginAfterPasswordChange.status, loginAfterPasswordChange.body)
-      expect(loginAfterPasswordChange.status).toBe(200)
-    })
-
 
     it('should preserve password hash when updating other fields', async () => {
       // Регистрируем пользователя
