@@ -68,35 +68,27 @@ describe('Auth controller', () => {
       password: 'testpass_135'
     }
     it('should hash password during signup', async () => {
-      // Регистрируем пользователя
       const signupResponse = await app.post('/auth/signup').send(testUser)
       expect(signupResponse.status).toBe(201)
 
-      // Получаем пользователя из базы
       const user = await getUserByEmail(testUser.email)
 
-      // Проверяем что пароль захеширован
       expect(user.password).not.toBe(testUser.password)
       expect(user.password).toMatch(/^\$2[aby]\$\d{1,2}\$[./A-Za-z0-9]{53}$/) // формат bcrypt хеша
     })
 
     it('should successfully login with correct password', async () => {
-      // 📌 1. Регистрируем пользователя
       await app.post('/auth/signup').send(testUser)
 
-      // 📌 2. Получаем пользователя
       const user = await getUserByEmail(testUser.email)
       console.log('🟢 User after signup:', user)
 
-      // 📌 3. Подтверждаем email напрямую в БД (этот способ уже используется в тестах)
       await User.updateOne({ _id: user._id }, { isEmailConfirmed: true })
 
-      // 📌 4. Проверяем, обновился ли email
       const updatedUser = await getUserByEmail(testUser.email)
       console.log('🟢 Updated user:', updatedUser)
       if (!updatedUser.isEmailConfirmed) throw new Error('❌ Email всё ещё не подтверждён!')
 
-      // 📌 5. Пробуем залогиниться снова
       const loginAfterConfirm = await app.post('/auth/login').send({
         email: testUser.email,
         password: testUser.password
@@ -109,14 +101,11 @@ describe('Auth controller', () => {
     })
 
     it('should fail login with incorrect password', async () => {
-      // Регистрируем пользователя
       await app.post('/auth/signup').send(testUser)
 
-      // Подтверждаем email
       const user = await getUserByEmail(testUser.email)
       await app.patch(`/users/${user._id}`).send({ isEmailConfirmed: true })
 
-      // Пробуем залогиниться с неверным паролем
       const loginResponse = await app.post('/auth/login').send({
         email: testUser.email,
         password: 'wrong_password_123'
@@ -127,19 +116,16 @@ describe('Auth controller', () => {
 
 
     it('should preserve password hash when updating other fields', async () => {
-      // Регистрируем пользователя
       await app.post('/auth/signup').send(testUser)
 
       const user = await getUserByEmail(testUser.email)
       const originalHash = user.password
 
-      // Обновляем другие поля
       await app.patch(`/users/${user._id}`).send({
         firstName: 'Updated',
         lastName: 'Name'
       })
 
-      // Проверяем что хеш пароля не изменился
       const updatedUser = await getUserByEmail(testUser.email)
       expect(updatedUser.password).toBe(originalHash)
     })
