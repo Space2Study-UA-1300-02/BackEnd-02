@@ -10,34 +10,35 @@ const { expectError } = require('~/test/helpers')
 const { OAuth2Client } = require('google-auth-library')
 const { getUserByEmail, privateUpdateUser } = require('~/services/user')
 const bcrypt = require('bcrypt')
+const User = require('~/models/user') // Подключаем модель
 
-jest.mock('google-auth-library')
+// Сброс модулей и очистка моков перед тестами
+jest.resetModules()
+jest.clearAllMocks()
+
+jest.mock('google-auth-library', () => ({
+  OAuth2Client: jest.fn().mockImplementation(() => ({
+    verifyIdToken: jest.fn().mockResolvedValue({
+      getPayload: () => ({
+        email: 'google.test@gmail.com',
+        email_verified: true,
+        given_name: 'John',
+        family_name: 'Doe'
+      })
+    })
+  }))
+}))
 
 describe('Auth controller', () => {
   let app, server, signupResponse
 
-  const mockGooglePayload = {
-    email: 'google.test@gmail.com',
-    email_verified: true,
-    given_name: 'John',
-    family_name: 'Doe'
-  }
-
-  const mockValidGoogleToken = {
-    credential: 'valid.google.token'
-  }
-
   beforeAll(async () => {
     ;({ app, server } = await serverInit())
-
-    OAuth2Client.mockImplementation(() => ({
-      verifyIdToken: jest.fn().mockResolvedValue({
-        getPayload: () => mockGooglePayload
-      })
-    }))
+    console.log('🔍 Google OAuth мок активирован') // Проверка, что мок работает
   })
 
   beforeEach(async () => {
+    await serverCleanup() // Очистка базы перед каждым тестом
     signupResponse = await app.post('/auth/signup').send(user)
   })
 
@@ -55,7 +56,7 @@ describe('Auth controller', () => {
     role: 'student',
     firstName: 'test',
     lastName: 'test',
-    email: 'test@gmail.com',
+    email: 'test@mail.com',
     password: 'testpass_135'
   }
 
@@ -336,48 +337,61 @@ describe('Auth controller', () => {
 
   describe('Login endpoint', () => {
     it('should authenticate user with correct credentials', async () => {
+      const createdUser = await getUserByEmail(user.email);
+      const userInstance = new User(createdUser); // Создаем экземпляр модели
+
+      const isMatch = await userInstance.comparePassword(user.password);
+      expect(isMatch).toBe(true); // Проверяем, совпадает ли пароль с хешем в базе
+
       const loginResponse = await app.post('/auth/login').send({
         email: user.email,
         password: user.password
-      })
-
-      expect(loginResponse.status).toBe(200)
-      expect(loginResponse.body).toHaveProperty('accessToken')
-    })
-
-    it('should not authenticate user with incorrect password', async () => {
-      const loginResponse = await app.post('/auth/login').send({
-        email: user.email,
-        password: 'wrongpassword'
       });
 
-      expectError(401, errors.INVALID_CREDENTIALS, loginResponse)
-    })
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body).toHaveProperty('accessToken');
+    });
+
+
+  it('should not authenticate user with incorrect password', async () => {
+      const loginResponse = await app.post('/auth/login').send({
+        email: user.email,
+        password: 'wrongpassword' // Отправляем неверный пароль
+      });
+
+      expectError(401, errors.INVALID_CREDENTIALS, loginResponse); // Ожидаем ошибку 401
+    });
 
     it('should return error for non-existent user', async () => {
       const loginResponse = await app.post('/auth/login').send({
         email: 'nonexistent@gmail.com',
         password: 'testpass_135'
-      })
+      });
 
-      expectError(404, errors.USER_NOT_FOUND, loginResponse)
-    })
-  })
+      expectError(404, errors.USER_NOT_FOUND, loginResponse); // Ожидаем ошибку 404, так как пользователя нет
+    });
+  });
+
+
 
   describe('Password comparison', () => {
     it('should return true for correct password', async () => {
-      const createdUser = await getUserByEmail(user.email)
-      const isMatch = await createdUser.comparePassword(user.password)
+      const userData = await getUserByEmail(user.email);
+      const createdUser = new User(userData); // Преобразуем в модель
 
-      expect(isMatch).toBe(true)
-    })
+      const isMatch = await createdUser.comparePassword(user.password);
+      expect(isMatch).toBe(true);
+    });
 
     it('should return false for incorrect password', async () => {
-      const createdUser = await getUserByEmail(user.email)
-      const isMatch = await createdUser.comparePassword('wrongpassword')
+      const userData = await getUserByEmail(user.email);
+      const createdUser = new User(userData);
 
-      expect(isMatch).toBe(false)
-    })
-  })
+      const isMatch = await createdUser.comparePassword('wrongpassword');
+      expect(isMatch).toBe(false);
+    });
+  });
+
+
 
 })

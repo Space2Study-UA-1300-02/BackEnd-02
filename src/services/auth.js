@@ -16,6 +16,7 @@ const emailSubject = require('~/consts/emailSubject')
 const {
   tokenNames: { REFRESH_TOKEN, RESET_TOKEN, CONFIRM_TOKEN }
 } = require('~/consts/auth')
+const bcrypt = require('bcrypt')
 
 const authService = {
   signup: async (role, firstName, lastName, email, password, language) => {
@@ -31,17 +32,29 @@ const authService = {
   },
 
   login: async (email, password, isFromGoogle) => {
-    const user = await getUserByEmail(email)
+    const user = await getUserByEmail(email) // Уже включает password благодаря select
 
     if (!user) {
       throw createError(401, USER_NOT_FOUND)
     }
 
-    const checkedPassword = (password === user.password) || isFromGoogle
+    // Для Google Auth пропускаем проверку пароля
+    if (!isFromGoogle) {
+      // Проверяем что пароль существует
+      if (!user.password) {
+        throw createError(401, INCORRECT_CREDENTIALS)
+      }
 
-    if (!checkedPassword) {
-      throw createError(401, INCORRECT_CREDENTIALS)
+      const isPasswordCorrect = await bcrypt.compare(password, user.password)
+      console.log('🔍 Введенный пароль:', password)
+      console.log('🔍 Хеш из базы:', user.password)
+      console.log('🔍 Совпадение паролей:', isPasswordCorrect)
+
+      if (!isPasswordCorrect) {
+        throw createError(401, INCORRECT_CREDENTIALS)
+      }
     }
+    // Остальной код логина
 
     const { _id, lastLoginAs, isFirstLogin, isEmailConfirmed } = user
 

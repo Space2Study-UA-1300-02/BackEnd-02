@@ -218,18 +218,23 @@ const userSchema = new Schema(
   }
 )
 
-// Middleware для хеширования пароля перед сохранением
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next(); // Если пароль не изменялся, пропускаем
+  // Проверяем, был ли изменен пароль
+  if (!this.isModified('password')) return next();
+
+  // Проверяем, что пароль существует
+  if (!this.password) return next();
 
   try {
-    const salt = await bcrypt.genSalt(10); // Генерируем соль (10 раундов)
-    this.password = await bcrypt.hash(this.password, salt); // Хешируем пароль
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    console.log('Хешированный пароль перед сохранением:', this.password);
     next();
   } catch (error) {
-    next(error); // Передаем ошибку в Mongoose
+    next(error);
   }
 });
+
 
 // Метод для проверки пароля
 userSchema.methods.comparePassword = async function (candidatePassword) {

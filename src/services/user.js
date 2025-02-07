@@ -33,7 +33,6 @@ const userService = {
   getUserByEmail: async (email) => {
     const user = await User.findOne({ email })
       .select('+password +lastLoginAs +isEmailConfirmed +isFirstLogin +appLanguage')
-      .lean()
       .exec()
 
     if (!user) {
