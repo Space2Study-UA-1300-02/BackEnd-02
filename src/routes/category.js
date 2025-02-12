@@ -8,12 +8,12 @@ const categoryController = require('~/controllers/category')
 /*router.use(authMiddleware)*/ //на етапе тестирование отключено
 
 // Маршрут доступен для пользователей с соответствующей ролью
-router.get('/', asyncWrapper(categoryController.getCategories))      // Получить все категории
-router.post('/', asyncWrapper(categoryController.createCategory))    // Создать категорию
-router.patch('/:id', asyncWrapper(categoryController.updateCategory)) // Обновить категорию
-router.delete('/:id', asyncWrapper(categoryController.deleteCategory)) // Удалить категорию
-router.get('/names', categoryController.getCategoryNames)  // Для получения имен категорий
-router.get('/:id', asyncWrapper(categoryController.getCategoryById)) // Получить категорию по ID
+router.get('/', asyncWrapper(categoryController.getCategories))
+router.post('/', asyncWrapper(categoryController.createCategory))
+router.patch('/:id', asyncWrapper(categoryController.updateCategory))
+router.delete('/:id', asyncWrapper(categoryController.deleteCategory))
+router.get('/names', categoryController.getCategoryNames)
+router.get('/:id', asyncWrapper(categoryController.getCategoryById))
 
 
 module.exports = router

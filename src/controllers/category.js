@@ -1,4 +1,3 @@
-// src/controllers/category.js
 const categoryService = require('~/services/category')
 
 const getCategories = async (req, res) => {
