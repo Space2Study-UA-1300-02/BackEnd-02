@@ -7,7 +7,8 @@ const adminInvitation = require('~/routes/adminInvitation')
 const question = require('~/routes/question')
 const resourcesCategory = require('~/routes/resourcesCategory')
 const offer = require('~/routes/offer')
-const locationRoutes = require('./location');
+const locationRoutes = require('./location')
+const category = require('./category')
 
 
 router.use('/auth', auth)
@@ -18,6 +19,6 @@ router.use('/questions', question)
 router.use('/resources-categories', resourcesCategory)
 router.use('/offers', offer)
 router.use('/location', locationRoutes)
-
+router.use('/categories', category)
 
 module.exports = router
