@@ -8,7 +8,6 @@ const logger = require('~/logger/logger')
 
 const app = express()
 
-
 const swaggerUi = require('swagger-ui-express')
 const swaggerSpec = require('./swagger')
 
