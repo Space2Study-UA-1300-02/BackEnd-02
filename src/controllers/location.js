@@ -8,7 +8,8 @@ const getCountriesList = async (req, res) => {
 
 const getCitiesList = async (req, res) => {
   const { country } = req.params
-  const cities = await getCitiesByCountry(country)
+  const { search = '' } = req.query
+  const cities = await getCitiesByCountry(country, search)
   res.json(cities)
 }
 
