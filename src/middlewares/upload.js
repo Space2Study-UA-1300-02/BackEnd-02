@@ -5,15 +5,21 @@ const cloudinary = require('../configs/cloudinary')
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    let folder = 'uploads'
-    if (req.baseUrl.includes('/user')) folder = 'users'
-    if (req.baseUrl.includes('/category')) folder = 'categories'
-    if (req.baseUrl.includes('/subject')) folder = 'subjects'
+    const { type = 'uploads' } = req.body
+
+    const folderMap = {
+      user: 'users',
+      category: 'categories',
+      subject: 'subjects',
+      uploads: 'uploads'
+    }
+
+    const folder = folderMap[type] || 'uploads'
 
     return {
       folder: folder,
-      format: 'webp', // Convert to WebP
-      public_id: file.originalname.split('.')[0]
+      format: 'webp',
+      public_id: `${folder}-${Date.now()}-${file.originalname.split('.')[0]}`
     }
   }
 })
