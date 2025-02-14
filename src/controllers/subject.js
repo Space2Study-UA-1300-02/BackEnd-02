@@ -29,7 +29,8 @@ const createSubject = async (req, res) => {
 
 const updateSubject = async (req, res) => {
   const { id } = req.params
-  const updatedSubject = await subjectService.updateSubject(id, req.body)
+  const updateData = req.body
+  const updatedSubject = await subjectService.updateSubject(id, updateData)
   res.status(200).json(updatedSubject)
 }
 
