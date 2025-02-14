@@ -1,6 +1,6 @@
 const { Schema, model } = require('mongoose')
-const { CATEGORY } = require('~/consts/models')
-const { FIELD_CANNOT_BE_EMPTY, DOCUMENT_ALREADY_EXISTS } = require('~/consts/errors')
+const { CATEGORY } = require('../consts/models')
+const { FIELD_CANNOT_BE_EMPTY, DOCUMENT_ALREADY_EXISTS } = require('../consts/errors')
 
 const categorySchema = new Schema(
   {

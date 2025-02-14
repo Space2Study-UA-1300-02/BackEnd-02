@@ -19,7 +19,6 @@ const createCategory = async (categoryData) => {
 }
 
 const updateCategory = async (id, updateData) => {
-
   const updateFields = {}
 
   if (updateData.appearance?.icon) {
