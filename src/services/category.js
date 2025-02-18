@@ -6,9 +6,15 @@ const getCategories = async () => {
 }
 
 const getCategoryById = async (id) => {
-  const category = await Category.findOne({ id })
-  if (!category) throw DOCUMENT_NOT_FOUND('Category')
-  return category
+  if (id.length > 10) {
+    const category = await Category.findOne({ _id: id })
+    if (!category) throw DOCUMENT_NOT_FOUND('Category')
+    return category
+  } else {
+    const category = await Category.findOne({ id })
+    if (!category) throw DOCUMENT_NOT_FOUND('Category')
+    return category;
+  }
 }
 
 
@@ -51,29 +57,11 @@ const getCategoryNames = async () => {
 }
 
 
-// Пошук категорій за назвою
-const searchCategories = async (search = '') => {
-  let categories = await Category.find({}, 'name id')
-
-  if (search.length >= 3) {
-    categories = categories.filter(category =>
-      category.name.toLowerCase().includes(search.toLowerCase())
-    )
-  }
-
-  return {
-    error: false,
-    data: categories.slice(0, 4),
-    total: categories.length
-  }
-}
-
 module.exports = {
   getCategories,
   getCategoryById,
   createCategory,
   updateCategory,
   deleteCategory,
-  getCategoryNames,
-  searchCategories
+  getCategoryNames
 }
