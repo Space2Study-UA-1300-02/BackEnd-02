@@ -4,7 +4,7 @@ const userService = require('../services/user')
 
 const uploadAndUpdate = async (req, res) => {
   try {
-    const { type, id, email } = req.body
+    const { type, id, role } = req.body
 
     if (!req.file) {
       return res.status(400).json({ error: 'File not uploaded' })
@@ -27,10 +27,10 @@ const uploadAndUpdate = async (req, res) => {
       break
 
     case 'user':
-      if (!email) {
+      if (!id) {
         return res.status(400).json({ error: 'Email is required for user updates' })
       }
-      const user = await userService.getUserByEmail(email)
+      const user = await userService.getUserById(id, role)
       if (!user) {
         return res.status(404).json({ error: 'User not found' })
       }
