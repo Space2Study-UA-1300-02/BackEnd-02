@@ -58,7 +58,7 @@ const getCategoryNames = async () => {
 
 // Пошук категорій за назвою
 const searchCategories = async (search = '') => {
-  let categories = await Category.find({}, 'name id')
+  let categories = await Category.find({}, 'name id appearance.icon')
 
   if (search.length >= 3) {
     categories = categories.filter(category =>
