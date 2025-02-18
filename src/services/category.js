@@ -51,11 +51,29 @@ const getCategoryNames = async () => {
 }
 
 
+// Пошук категорій за назвою
+const searchCategories = async (search = '') => {
+  let categories = await Category.find({}, 'name id')
+
+  if (search.length >= 3) {
+    categories = categories.filter(category =>
+      category.name.toLowerCase().includes(search.toLowerCase())
+    )
+  }
+
+  return {
+    error: false,
+    data: categories.slice(0, 4),
+    total: categories.length
+  }
+}
+
 module.exports = {
   getCategories,
   getCategoryById,
   createCategory,
   updateCategory,
   deleteCategory,
-  getCategoryNames
+  getCategoryNames,
+  searchCategories
 }

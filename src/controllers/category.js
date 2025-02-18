@@ -37,11 +37,18 @@ const getCategoryNames = async (req, res) => {
   res.status(200).json(names)
 }
 
+const searchCategory = async (req, res) => {
+  const { search } = req.query
+  const results = await categoryService.searchCategories(search)
+  res.status(200).json(results)
+}
+
 module.exports = {
   getCategories,
   getCategoryById,
   createCategory,
   updateCategory,
   deleteCategory,
-  getCategoryNames
+  getCategoryNames,
+  searchCategory
 }

@@ -8,12 +8,12 @@ const categoryController = require('~/controllers/category')
 /*router.use(authMiddleware)*/ //на етапе тестирование отключено
 
 // Маршрут доступен для пользователей с соответствующей ролью
+router.get('/search', asyncWrapper(categoryController.searchCategory))
 router.get('/', asyncWrapper(categoryController.getCategories))
 router.post('/', asyncWrapper(categoryController.createCategory))
 router.patch('/:id', asyncWrapper(categoryController.updateCategory))
 router.delete('/:id', asyncWrapper(categoryController.deleteCategory))
 router.get('/names', categoryController.getCategoryNames)
 router.get('/:id', asyncWrapper(categoryController.getCategoryById))
-
 
 module.exports = router
