@@ -5,10 +5,9 @@ const getSubjects = async () => {
   return Subject.find()
 }
 
-
 const getSubjectNames = async () => {
   const subjects = await Subject.find({}, 'name')
-  return subjects.map(subject => subject.name)
+  return subjects.map((subject) => subject.name)
 }
 
 const getSubjectById = async (id) => {
@@ -19,9 +18,13 @@ const getSubjectById = async (id) => {
 
 const getSubjectsByCategoryId = async (categoryId) => {
   const subjects = await Subject.find({ categoryId }, 'name')
-  return subjects.map(subject => subject.name)
+  return subjects.map((subject) => {
+    return {
+      name: subject.name,
+      _id: subject._id
+    }
+  })
 }
-
 
 const createSubject = async (subjectData) => {
   const lastSubject = await Subject.findOne().sort('-id')
@@ -42,11 +45,7 @@ const updateSubject = async (id, updateData) => {
     updateFields['appearance.color'] = updateData.appearance.color
   }
 
-  const subject = await Subject.findOneAndUpdate(
-    { id },
-    { $set: updateFields },
-    { new: true }
-  )
+  const subject = await Subject.findOneAndUpdate({ id }, { $set: updateFields }, { new: true })
 
   if (!subject) throw DOCUMENT_NOT_FOUND('Subject')
   return subject

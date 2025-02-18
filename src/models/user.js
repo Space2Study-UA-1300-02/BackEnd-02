@@ -48,7 +48,9 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: function () { return !this.isGoogleAuth },
+      required: function () {
+        return !this.isGoogleAuth
+      },
       minLength: [8, FIELD_CANNOT_BE_SHORTER('password', 8)],
       select: false
     },
@@ -89,7 +91,7 @@ const userSchema = new Schema(
       }
     },
     nativeLanguage: {
-      type: String,
+      type: [String],
       enum: {
         values: SPOKEN_LANG_ENUM,
         message: ENUM_CAN_BE_ONE_OF('native language', SPOKEN_LANG_ENUM)
@@ -220,26 +222,24 @@ const userSchema = new Schema(
 
 userSchema.pre('save', async function (next) {
   // Проверяем, был ли изменен пароль
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password')) return next()
 
   // Проверяем, что пароль существует
-  if (!this.password) return next();
+  if (!this.password) return next()
 
   try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    console.log('Хешированный пароль перед сохранением:', this.password);
-    next();
+    const salt = await bcrypt.genSalt(10)
+    this.password = await bcrypt.hash(this.password, salt)
+    console.log('Хешированный пароль перед сохранением:', this.password)
+    next()
   } catch (error) {
-    next(error);
+    next(error)
   }
-});
-
+})
 
 // Метод для проверки пароля
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password); // Сравниваем хеши
-};
-
+  return bcrypt.compare(candidatePassword, this.password) // Сравниваем хеши
+}
 
 module.exports = model(USER, userSchema)
