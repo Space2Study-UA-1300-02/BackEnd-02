@@ -1,8 +1,11 @@
 const categoryService = require('~/services/category')
 
 const getCategories = async (req, res) => {
-  const categories = await categoryService.getCategories()
-  res.status(200).json(categories)
+  const page = parseInt(req.query.page) || 1
+  const limit = parseInt(req.query.limit) || 12
+
+  const result = await categoryService.getCategories(page, limit)
+  res.status(200).json(result)
 }
 
 const getCategoryById = async (req, res) => {

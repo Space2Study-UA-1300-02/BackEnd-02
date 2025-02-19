@@ -1,8 +1,21 @@
 const Category = require('~/models/category')
 const { DOCUMENT_NOT_FOUND } = require('~/consts/errors')
 
-const getCategories = async () => {
-  return Category.find()
+const getCategories = async (page = 1, limit = 12) => {
+  const skip = (page - 1) * limit
+  const categories = await Category.find().sort({ id: 1 }).skip(skip).limit(limit)
+
+  const total = await Category.countDocuments()
+
+  return {
+    categories,
+    pagination: {
+      total,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + categories.length < total
+    }
+  }
 }
 
 const getCategoryById = async (id) => {
