@@ -1,7 +1,19 @@
 const Offer = require('~/models/offer')
-
+const errors = require('~/consts/errors')
 const filterAllowedFields = require('~/utils/filterAllowedFields')
 const { allowedOfferFieldsForUpdate } = require('~/validation/services/offer')
+
+// Допоміжна функція перевірки прав
+const checkInvolvement = async (offerId, userId) => {
+  const offer = await Offer.findById(offerId)
+  if (offer.author.toString() !== userId) {
+    throw {
+      status: 403,
+      ...errors.FORBIDDEN
+    }
+  }
+  return offer
+}
 
 const offerService = {
   getOffers: async (pipeline) => {
@@ -50,9 +62,9 @@ const offerService = {
   },
 
   updateOffer: async (id, currentUserId, updateData) => {
-    const filteredUpdateData = filterAllowedFields(updateData, allowedOfferFieldsForUpdate)
+    const offer = await checkInvolvement(id, currentUserId)
 
-    const offer = await Offer.findById(id)
+    const filteredUpdateData = filterAllowedFields(updateData, allowedOfferFieldsForUpdate)
 
     for (let field in filteredUpdateData) {
       offer[field] = filteredUpdateData[field]
@@ -62,7 +74,8 @@ const offerService = {
     await offer.save()
   },
 
-  deleteOffer: async (id) => {
+  deleteOffer: async (id, currentUserId) => {
+    await checkInvolvement(id, currentUserId)
     await Offer.findByIdAndRemove(id).exec()
   }
 }
