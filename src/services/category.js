@@ -1,21 +1,33 @@
 const Category = require('~/models/category')
 const { DOCUMENT_NOT_FOUND } = require('~/consts/errors')
 
-const getCategories = async (page = 1, limit = 12) => {
-  const skip = (page - 1) * limit
-  const categories = await Category.find().sort({ id: 1 }).skip(skip).limit(limit)
+const getCategories = async (page = 1, limit = 12, search = '') => {
+  const skip = (page - 1) * limit;
 
-  const total = await Category.countDocuments()
+  let query = {};
+
+  // Добавляем поиск если есть параметр search и он не менее 3 символов
+  if (search && search.length >= 3) {
+    query.name = { $regex: search, $options: 'i' };
+  }
+
+  const categories = await Category.find(query)
+    .sort({ id: 1 })
+    .skip(skip)
+    .limit(limit);
+
+  const total = await Category.countDocuments(query);
 
   return {
-    categories,
+    error: false,
+    data: categories,
     pagination: {
       total,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
       hasMore: skip + categories.length < total
     }
-  }
+  };
 }
 
 const getCategoryById = async (id) => {
@@ -29,7 +41,6 @@ const getCategoryById = async (id) => {
     return category;
   }
 }
-
 
 const createCategory = async (categoryData) => {
   const lastCategory = await Category.findOne().sort('-id')
@@ -57,7 +68,6 @@ const updateCategory = async (id, updateData) => {
   return category
 }
 
-
 const deleteCategory = async (id) => {
   const category = await Category.findOneAndDelete({ id })
   if (!category) throw DOCUMENT_NOT_FOUND('Category')
@@ -69,23 +79,10 @@ const getCategoryNames = async () => {
   return categories.map(category => category.name)
 }
 
-// Пошук категорій за назвою
+// Оставляем для обратной совместимости, но перенаправляем на основной метод
 const searchCategories = async (search = '') => {
-  let categories = await Category.find({}, 'name id appearance.icon')
-
-  if (search.length >= 3) {
-    categories = categories.filter(category =>
-      category.name.toLowerCase().includes(search.toLowerCase())
-    )
-  }
-
-  return {
-    error: false,
-    data: categories.slice(0, 4),
-    total: categories.length
-  }
+  return getCategories(1, 4, search);
 }
-
 
 module.exports = {
   getCategories,

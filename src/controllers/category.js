@@ -1,11 +1,12 @@
 const categoryService = require('~/services/category')
 
 const getCategories = async (req, res) => {
-  const page = parseInt(req.query.page) || 1
-  const limit = parseInt(req.query.limit) || 12
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 12;
+  const search = req.query.search || '';
 
-  const result = await categoryService.getCategories(page, limit)
-  res.status(200).json(result)
+  const result = await categoryService.getCategories(page, limit, search);
+  res.status(200).json(result);
 }
 
 const getCategoryById = async (req, res) => {
@@ -13,7 +14,6 @@ const getCategoryById = async (req, res) => {
   const category = await categoryService.getCategoryById(id)
   res.status(200).json(category)
 }
-
 
 const createCategory = async (req, res) => {
   const categoryData = req.body
@@ -28,7 +28,6 @@ const updateCategory = async (req, res) => {
   res.status(200).json(updatedCategory)
 }
 
-
 const deleteCategory = async (req, res) => {
   const { id } = req.params
   await categoryService.deleteCategory(id)
@@ -40,6 +39,7 @@ const getCategoryNames = async (req, res) => {
   res.status(200).json(names)
 }
 
+// Оставляем для обратной совместимости
 const searchCategory = async (req, res) => {
   const { search } = req.query
   const results = await categoryService.searchCategories(search)
