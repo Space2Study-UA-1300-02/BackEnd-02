@@ -14,7 +14,7 @@ const body = [
 ]
 const params = [{ model: Offer, idName: 'id' }]
 
-router.use(authMiddleware)
+//router.use(authMiddleware)
 
 router.param('id', idValidation)
 

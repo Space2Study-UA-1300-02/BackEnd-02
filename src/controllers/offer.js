@@ -18,8 +18,11 @@ const getOfferById = async (req, res) => {
 }
 
 const createOffer = async (req, res) => {
-  const { id: authorId, role: authorRole } = req.user
-  const data = req.body
+  const { author: authorId, authorRole, ...data } = req.body // версия для постмена
+
+  /*const { id: authorId, role: authorRole } = req.user
+  const data = req.body*/ // версия с включенным auth middleware
+
 
   const newOffer = await offerService.createOffer(authorId, authorRole, data)
 
@@ -38,8 +41,9 @@ const updateOffer = async (req, res) => {
 
 const deleteOffer = async (req, res) => {
   const { id } = req.params
+  const { id: currentUserId } = req.user
 
-  await offerService.deleteOffer(id)
+  await offerService.deleteOffer(id, currentUserId)
 
   res.status(204).end()
 }
