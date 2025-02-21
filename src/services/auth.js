@@ -215,9 +215,10 @@ const authService = {
   confirmEmail: async (confirmToken) => {
     console.log('confirm done')
     const tokenData = tokenService.validateConfirmToken(confirmToken)
-
+    if (!tokenData) {console.log('no tokenData')}
     const tokenFromDB = await tokenService.findToken(confirmToken, CONFIRM_TOKEN)
-
+    console.log('CONFIRM TOKEN:', CONFIRM_TOKEN)
+    console.log('tokenFromDB:', tokenFromDB)
     if (!tokenData || !tokenFromDB) {
       throw createError(400, BAD_CONFIRM_TOKEN)
     }
